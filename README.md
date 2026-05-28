@@ -1,25 +1,16 @@
 # Terraria
 
-## Popis projektu
+2D sandbox hra inspirovaná principy Terraria, napsaná v C++20 s Raylib.
 
-2D sandbox hra inspirovaná principy Terraria, napsaná v C++20 s Raylib. Hra pracuje s blokovým světem, který je procedurálně generovaný a rozdělený na chunky. Hráč se může pohybovat, skákat, těžit a pokládat bloky.
+## Build a spuštění
 
-## Použité technologie
+```bash
+cmake -S . -B build
+cmake --build build
+./build/Terraria
+```
 
-- C++20
-- Raylib 5.5 (grafika, vstup, okno)
-- CMake 3.20+ (build system)
-
-## Funkce hry
-
-- Procedurálně generovaný 2D blokový svět (tráva, hlína, kámen, rudy, jeskyně)
-- Pohyb hráče (doleva, doprava, skok) s gravitací a kolizemi
-- Kamera sledující hráče
-- Těžení bloků levým tlačítkem myši
-- Pokládání bloků pravým tlačítkem myši
-- Hotbar s 8 sloty, výběr klávesami 1–8
-- Ukládání a načítání světa
-- Menu pro novou hru / načtení
+Raylib se stáhne automaticky přes FetchContent.
 
 ## Ovládání
 
@@ -34,50 +25,63 @@
 | F5 | uložit hru |
 | F9 | načíst hru |
 | Esc | pauza / menu |
+| I | inventář |
+| M | minimapa |
 
-## Build a spuštění
+## Architektura
 
-```bash
-cmake -S . -B build
-cmake --build build
-./build/Terraria
-```
-
-Raylib se stáhne automaticky přes FetchContent.
-
-## Architektura projektu
-
-- `Game` — hlavní třída, řídí životní cyklus aplikace a stavy
+- `Game` — hlavní třída, řídí stavy, herní smyčku, spawn a respawn
 - `World` — správa chunků a tile-based světa
-- `Chunk` — 32×32 bloků, lazy alokace, dirty flag
-- `WorldGenerator` — procedurální generování terénu
-- `Player` — hráč s pohybem, gravitací, inventářem
-- `CollisionSystem` — kolize hráče s tile mapou v ose X a Y
+- `Chunk` — 32×32 bloků, lazy alokace, dirty flag pro ukládání
+- `WorldGenerator` — procedurální generování terénu, jeskyní, rud, stromů
+- `Player` — pohyb, gravitace, health, inventář, animace
+- `Mob` — nepřátelé (slime, zombie) s jednoduchou AI
+- `CollisionSystem` — AABB kolize s tile mapou
 - `MiningSystem` — těžení a pokládání bloků
-- `RenderSystem` — vykreslování pouze viditelných bloků
-- `Inventory` — hotbar s 8 sloty
-- `SaveManager` — ukládání/načítání světa do textového formátu
+- `RenderSystem` — rendering bloků + dynamické osvětlení
+- `ParticleSystem` — částicové efekty
+- `CameraController` — kamera sledující hráče
+- `SaveManager` — ukládání/načítání do textového formátu
 
-## Procedurální generování světa
+## Svět a generování
 
-1. Základní výška terénu je určena jednoduchým noise algoritmem
-2. Povrch je pokryt trávou, pod ním je hlína, hlouběji kámen
-3. Rudy jsou náhodně rozmístěny v kamenné vrstvě
-4. Jeskyně jsou vytvořeny jako kruhové dutiny v hlubších vrstvách
+Svět je generován v tomto pořadí:
 
-## Chunk systém a optimalizace
+1. buildWorldMaps — výšková mapa a biomy
+2. protectSpawnArea — zarovnání spawn zóny
+3. generateTerrain — bloky podle výškové mapy a biomu
+4. generateCaves — noise-based jeskyně (min. 26 bloků pod povrchem)
+5. generateWormCaves — hadovité tunele (hluboko, daleko od spawnu)
+6. repairSurfaceLayer — oprava povrchu po jeskyních
+7. generateUndergroundCabins — podzemní místnůstky
+8. generateOreVeins — rudy v kamenné vrstvě
+9. generateUndergroundPockets — podzemní kapsy
+10. repairSurfaceLayer — finální oprava před stromy
+11. generateTrees — stromy, kaktusy, houby
 
-Svět je rozdělen na chunky o velikosti 32×32 bloků. Vykreslují se pouze chunky, které jsou viditelné kamerou. Každý chunk má dirty flag, který se nastaví při změně bloku a využívá se při ukládání.
+Floating islands jsou dočasně zakázané.
 
-## Ukládání a načítání
+## Osvětlení
 
-Save formát je textový. Ukládá se pozice hráče, inventář a všechny neprázdné změněné bloky. Pokud save soubor neexistuje, vytvoří se nový svět.
+Svět má den/noční cyklus a dynamické osvětlení:
+- Povrch je osvětlený podle denní doby (v noci tlumené)
+- Pod zemí klesá světlo s hloubkou
+- Hráč a pochodně vytvářejí kruhové světelné zdroje
+- Světlo je počítáno v buňkách o polovině tile size
 
-## Co bych dále vylepšil
+## Aktuální problémy
+
+- **Stabilita generování**: jeskyně se někdy prořezávají příliš blízko povrchu, vznikají visící travnaté plošiny. Opraveno pomocí SURFACE_SAFE_DEPTH a repairSurfaceLayer, ale pořád se testuje.
+- **Osvětlení**: light overlay používá buňky 32×32 px, což občas vytváří viditelné mřížkové přechody.
+- **Spawn detection**: hledání bezpečné spawn pozice je složité, pokud je terén nad spawnem poškozený. Používá se spiral search s kontrolou pevné země a volného prostoru.
+
+## Plánované změny
 
 - Textury místo barevných obdélníků
-- Nepřátelé s jednoduchou AI
 - Crafting systém
-- Zvuky a částicové efekty
-- Více biomů
-- Osvětlení
+- Více typů nepřátel (letící, lezoucí)
+- Floating islands (až bude terén stabilní)
+- Dynamické světelné zdroje (mobilní pochodně)
+- Vylepšený save formát (binární nebo komprimovaný)
+- Tooltipy a vylepšené UI
+- Slot pro batoh / rozšířený inventář
