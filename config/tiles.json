@@ -1,0 +1,8 @@
+[
+    {"id": 0, "name": "Air", "solid": false, "hardness": 0},
+    {"id": 1, "name": "Grass", "solid": true, "hardness": 1},
+    {"id": 2, "name": "Dirt", "solid": true, "hardness": 1},
+    {"id": 3, "name": "Stone", "solid": true, "hardness": 3},
+    {"id": 4, "name": "Wood", "solid": true, "hardness": 2},
+    {"id": 5, "name": "Ore", "solid": true, "hardness": 4}
+]

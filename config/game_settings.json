@@ -1,0 +1,12 @@
+{
+    "screen_width": 1280,
+    "screen_height": 720,
+    "tile_size": 16,
+    "chunk_size": 32,
+    "world_width": 1024,
+    "world_height": 256,
+    "gravity": 1200.0,
+    "player_speed": 220.0,
+    "jump_speed": -480.0,
+    "target_fps": 60
+}
