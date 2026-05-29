@@ -117,6 +117,18 @@ bool SaveManager::save(const World& world, const Player& player, const std::stri
                     int worldY = baseTileY + ly;
                     file << "TILE " << worldX << " " << worldY << " " << static_cast<int>(id) << "\n";
                 }
+                uint8_t water = chunk->getWater(lx, ly);
+                if (water > 0) {
+                    int worldX = baseTileX + lx;
+                    int worldY = baseTileY + ly;
+                    file << "WATER " << worldX << " " << worldY << " " << static_cast<int>(water) << "\n";
+                }
+                uint8_t lava = chunk->getLava(lx, ly);
+                if (lava > 0) {
+                    int worldX = baseTileX + lx;
+                    int worldY = baseTileY + ly;
+                    file << "LAVA " << worldX << " " << worldY << " " << static_cast<int>(lava) << "\n";
+                }
                 TileId wall = chunk->getWall(lx, ly);
                 if (wall != TileId::Air) {
                     int worldX = baseTileX + lx;
@@ -167,6 +179,14 @@ bool SaveManager::load(World& world, Player& player, const std::string& filepath
             int tx, ty, tileId;
             iss >> tx >> ty >> tileId;
             world.setTile(tx, ty, static_cast<TileId>(tileId));
+        } else if (keyword == "WATER") {
+            int tx, ty, amount;
+            iss >> tx >> ty >> amount;
+            world.setWater(tx, ty, static_cast<uint8_t>(amount));
+        } else if (keyword == "LAVA") {
+            int tx, ty, amount;
+            iss >> tx >> ty >> amount;
+            world.setLava(tx, ty, static_cast<uint8_t>(amount));
         } else if (keyword == "WALL") {
             int tx, ty, wallId;
             iss >> tx >> ty >> wallId;

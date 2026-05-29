@@ -361,7 +361,12 @@ void WorldGenerator::rebuildSpawnArea() {
 }
 
 void WorldGenerator::repairSurfaceLayer() {
+    int oceanMargin = 62;
     for (int x = 0; x < constants::WORLD_WIDTH; ++x) {
+        if (x < oceanMargin || x >= constants::WORLD_WIDTH - oceanMargin) {
+            continue;
+        }
+
         int surfaceY = m_surfaceHeight[x];
 
         if (surfaceY < 5 || surfaceY >= constants::WORLD_HEIGHT - 10) {
@@ -438,25 +443,34 @@ void WorldGenerator::generate(ProgressCallback progress) {
     if (progress) progress(0.25f);
 
     generateCaves();
-    if (progress) progress(0.40f);
+    if (progress) progress(0.35f);
 
     generateWormCaves();
-    if (progress) progress(0.50f);
+    if (progress) progress(0.42f);
+
+    generateOceans();
+    if (progress) progress(0.48f);
 
     repairSurfaceLayer();
-    if (progress) progress(0.58f);
+    if (progress) progress(0.55f);
 
     generateUndergroundCabins();
-    if (progress) progress(0.68f);
+    if (progress) progress(0.63f);
 
     generateOreVeins();
-    if (progress) progress(0.78f);
+    if (progress) progress(0.70f);
 
     generateUndergroundPockets();
-    if (progress) progress(0.86f);
+    if (progress) progress(0.77f);
+
+    generateWaterPools();
+    if (progress) progress(0.83f);
+
+    generateLavaPools();
+    if (progress) progress(0.88f);
 
     repairSurfaceLayer();
-    if (progress) progress(0.90f);
+    if (progress) progress(0.93f);
 
     generateTrees();
     if (progress) progress(1.0f);
@@ -981,6 +995,114 @@ void WorldGenerator::generateUndergroundCabins() {
         }
 
         placed++;
+    }
+}
+
+void WorldGenerator::generateOceans() {
+    int oceanWidth = 60;
+    int oceanDepth = 25;
+
+    for (int side = 0; side < 2; ++side) {
+        int startX = (side == 0) ? 0 : constants::WORLD_WIDTH - oceanWidth;
+        int endX = (side == 0) ? oceanWidth : constants::WORLD_WIDTH;
+
+        for (int x = startX; x < endX; ++x) {
+            if (x < 0 || x >= constants::WORLD_WIDTH) continue;
+            int sy = m_surfaceHeight[x];
+
+            int pitBottom = std::min(constants::WORLD_HEIGHT - 5, sy + oceanDepth);
+
+            for (int y = sy; y <= pitBottom; ++y) {
+                TileId t = m_world.getTile(x, y);
+                if (t == TileId::Air || t == TileId::Wood || t == TileId::Planks ||
+                    t == TileId::Hellstone) continue;
+                m_world.setTile(x, y, TileId::Air);
+            }
+
+            for (int y = sy + 3; y <= pitBottom; ++y) {
+                m_world.setWater(x, y, MAX_LIQUID_LEVEL);
+            }
+        }
+    }
+}
+
+void WorldGenerator::generateWaterPools() {
+    int poolCount = constants::WORLD_WIDTH / 15;
+
+    for (int i = 0; i < poolCount; ++i) {
+        int cx = m_rng.range(10, constants::WORLD_WIDTH - 10);
+        int surfaceY = m_surfaceHeight[cx];
+        int cy = surfaceY + 15 + m_rng.range(0, constants::WORLD_HEIGHT - surfaceY - 40);
+        if (cy >= constants::WORLD_HEIGHT - 30) continue;
+
+        TileId center = m_world.getTile(cx, cy);
+        if (center == TileId::Air) continue;
+
+        int poolW = 3 + m_rng.range(0, 4);
+        int poolH = 1 + m_rng.range(0, 3);
+        bool valid = true;
+
+        for (int dy = -poolH; dy <= 0 && valid; ++dy) {
+            for (int dx = -poolW; dx <= poolW && valid; ++dx) {
+                int tx = cx + dx;
+                int ty = cy + dy;
+                if (!m_world.isInBounds(tx, ty)) { valid = false; break; }
+                TileId t = m_world.getTile(tx, ty);
+                if (t == TileId::Air || t == TileId::Wood || t == TileId::Planks) {
+                    valid = false;
+                }
+            }
+        }
+        if (!valid) continue;
+
+        for (int dy = -poolH; dy <= 0; ++dy) {
+            for (int dx = -poolW; dx <= poolW; ++dx) {
+                int tx = cx + dx;
+                int ty = cy + dy;
+                float dist = std::sqrt(static_cast<float>(dx * dx + dy * dy));
+                if (dist > poolW + 0.5f) continue;
+                if (dist > poolW - 1.0f && m_rng.range(0, 2) == 0) continue;
+                if (m_world.isInBounds(tx, ty)) {
+                    m_world.setTile(tx, ty, TileId::Air);
+                    if (dy >= -1) {
+                        m_world.setWater(tx, ty, MAX_LIQUID_LEVEL);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void WorldGenerator::generateLavaPools() {
+    int underworldStart = constants::WORLD_HEIGHT - 50;
+    int poolCount = constants::WORLD_WIDTH / 20;
+
+    for (int i = 0; i < poolCount; ++i) {
+        int cx = m_rng.range(10, constants::WORLD_WIDTH - 10);
+        int cy = underworldStart + m_rng.range(0, 40);
+        if (cy >= constants::WORLD_HEIGHT - 5) continue;
+
+        TileId center = m_world.getTile(cx, cy);
+        if (center == TileId::Air || center == TileId::Hellstone) continue;
+
+        int poolW = 2 + m_rng.range(0, 4);
+        int poolH = 1 + m_rng.range(0, 2);
+        int lavaLevel = MAX_LIQUID_LEVEL - m_rng.range(0, 60);
+
+        for (int dy = -poolH; dy <= 0; ++dy) {
+            for (int dx = -poolW; dx <= poolW; ++dx) {
+                int tx = cx + dx;
+                int ty = cy + dy;
+                if (!m_world.isInBounds(tx, ty)) continue;
+                float dist = std::sqrt(static_cast<float>(dx * dx + dy * dy));
+                if (dist > poolW + 0.5f) continue;
+                if (dist > poolW - 1.0f && m_rng.range(0, 2) == 0) continue;
+                m_world.setTile(tx, ty, TileId::Air);
+                if (dy >= -1) {
+                    m_world.setLava(tx, ty, lavaLevel);
+                }
+            }
+        }
     }
 }
 

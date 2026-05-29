@@ -62,6 +62,9 @@ private:
     void generateUndergroundPockets();
     void generateFloatingIslands();
     void generateUndergroundCabins();
+    void generateOceans();
+    void generateWaterPools();
+    void generateLavaPools();
 
     bool isSolidBelow(int tileX, int tileY) const;
     bool isReplaceableForCave(TileId id) const;

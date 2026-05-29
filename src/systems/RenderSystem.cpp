@@ -166,6 +166,47 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera,
             }
         }
     }
+
+    for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
+        for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
+            uint8_t water = world.getWater(tileX, tileY);
+            uint8_t lava = world.getLava(tileX, tileY);
+            if (water == 0 && lava == 0) continue;
+
+            int px = static_cast<int>(math::tileToWorldX(tileX));
+            int py = static_cast<int>(math::tileToWorldY(tileY));
+
+            TileId foreground = world.getTile(tileX, tileY);
+            if (foreground != TileId::Air && TileRegistry::instance().get(foreground).solid)
+                continue;
+
+            if (water > 0) {
+                float fill = static_cast<float>(water) / static_cast<float>(MAX_LIQUID_LEVEL);
+                int liquidH = std::max(1, static_cast<int>(constants::TILE_SIZE * fill));
+                int liquidY = py + constants::TILE_SIZE - liquidH;
+                unsigned char alpha = static_cast<unsigned char>(100 + 80 * fill);
+                DrawRectangle(px, liquidY, constants::TILE_SIZE, liquidH,
+                              Color{40, 120, 220, alpha});
+                if (fill > 0.5f) {
+                    DrawRectangle(px, liquidY, constants::TILE_SIZE, 1,
+                                  Color{80, 160, 255, alpha});
+                }
+            }
+
+            if (lava > 0) {
+                float fill = static_cast<float>(lava) / static_cast<float>(MAX_LIQUID_LEVEL);
+                int liquidH = std::max(1, static_cast<int>(constants::TILE_SIZE * fill));
+                int liquidY = py + constants::TILE_SIZE - liquidH;
+                unsigned char alpha = static_cast<unsigned char>(180 + 75 * fill);
+                DrawRectangle(px, liquidY, constants::TILE_SIZE, liquidH,
+                              Color{255, 80, 0, alpha});
+                if (fill > 0.5f) {
+                    DrawRectangle(px, liquidY, constants::TILE_SIZE, 1,
+                                  Color{255, 180, 50, alpha});
+                }
+            }
+        }
+    }
 }
 
 bool isSolidLightingTile(const World& world, int x, int y) {

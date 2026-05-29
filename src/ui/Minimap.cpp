@@ -20,6 +20,11 @@ Minimap::~Minimap() {
 }
 
 Color Minimap::getTileColor(const World& world, int tx, int ty) {
+    uint8_t water = world.getWater(tx, ty);
+    uint8_t lava = world.getLava(tx, ty);
+    if (water > 0) return Color{40, 120, 220, 200};
+    if (lava > 0) return Color{255, 80, 0, 200};
+
     TileId id = world.getTile(tx, ty);
     if (id == TileId::Air) {
         TileId wall = world.getWall(tx, ty);

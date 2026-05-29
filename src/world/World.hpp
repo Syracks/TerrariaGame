@@ -17,6 +17,10 @@ public:
     void setTile(int tileX, int tileY, TileId id);
     TileId getWall(int tileX, int tileY) const;
     void setWall(int tileX, int tileY, TileId id);
+    uint8_t getWater(int tileX, int tileY) const;
+    void setWater(int tileX, int tileY, uint8_t amount);
+    uint8_t getLava(int tileX, int tileY) const;
+    void setLava(int tileX, int tileY, uint8_t amount);
     bool isSolid(int tileX, int tileY) const;
     bool isInBounds(int tileX, int tileY) const;
 
@@ -26,6 +30,8 @@ public:
 
     Chunk* getChunk(int chunkX, int chunkY);
     const Chunk* getChunk(int chunkX, int chunkY) const;
+
+    void getChunksWithLiquid(std::vector<Chunk*>& outChunks);
 
     int getWorldWidth() const { return constants::WORLD_WIDTH; }
     int getWorldHeight() const { return constants::WORLD_HEIGHT; }

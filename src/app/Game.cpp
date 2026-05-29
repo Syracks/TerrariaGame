@@ -7,6 +7,7 @@
 #include "items/Tool.hpp"
 #include "systems/PhysicsSystem.hpp"
 #include "systems/CollisionSystem.hpp"
+#include "systems/LiquidSystem.hpp"
 #include "systems/MiningSystem.hpp"
 #include "systems/RenderSystem.hpp"
 #include "ui/HUD.hpp"
@@ -308,12 +309,36 @@ void Game::update(float dt) {
     if (m_dayTime >= CYCLE_LENGTH) m_dayTime -= CYCLE_LENGTH;
 
     if (m_player->getHealth() > 0) {
+        bool inWater = LiquidSystem::isInWater(*m_world, m_player->getPosition().x, m_player->getPosition().y,
+                                                m_player->getBounds().width, m_player->getBounds().height);
+
         m_playerController.update(*m_player);
-        if (input::isJumpPressed() && m_player->isOnGround()) {
-            SoundManager::instance().play(SoundManager::Jump);
+        if (input::isJumpPressed()) {
+            if (m_player->isOnGround()) {
+                SoundManager::instance().play(SoundManager::Jump);
+            } else if (inWater) {
+                Vector2 vel = m_player->getVelocity();
+                vel.y = -200.0f;
+                m_player->setVelocity(vel);
+            }
         }
         m_player->update(dt);
         CollisionSystem::resolveCollision(*m_player, *m_world, dt);
+
+        if (inWater) {
+            Vector2 vel = m_player->getVelocity();
+            vel.x *= 0.85f;
+            vel.y *= 0.92f;
+            if (std::abs(vel.y) > 60.0f) vel.y *= 0.96f;
+            m_player->setVelocity(vel);
+        }
+    }
+
+    LiquidSystem::update(*m_world, dt);
+
+    if (LiquidSystem::isInLava(*m_world, m_player->getPosition().x, m_player->getPosition().y,
+                                m_player->getBounds().width, m_player->getBounds().height)) {
+        m_player->takeDamage(10);
     }
 
     Vector2 playerCenter = {
@@ -773,6 +798,7 @@ void Game::cleanup() {
         mob->unload();
     }
     m_mobs.clear();
+    m_minimap.reset();
     UnloadTexture(m_background);
     TextureManager::instance().unloadAll();
     SoundManager::instance().unloadAll();

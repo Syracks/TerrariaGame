@@ -33,7 +33,16 @@ enum class TileId : int {
     DirtWall = 26,
     StoneWall = 27,
     WoodWall = 28,
-    PlanksWall = 29
+    PlanksWall = 29,
+    Water = 30,
+    Lava = 31
+};
+
+constexpr int MAX_LIQUID_LEVEL = 255;
+
+struct LiquidInfo {
+    uint8_t amount = 0;  // 0 = none, 255 = full
+    bool isLava = false;
 };
 
 struct TileDefinition {

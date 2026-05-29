@@ -36,6 +36,8 @@ TileRegistry::TileRegistry() {
     m_tiles[TileId::StoneWall]    = {TileId::StoneWall,    "Stone Wall",   false, 1, Color{120, 120, 120, 200}};
     m_tiles[TileId::WoodWall]     = {TileId::WoodWall,     "Wood Wall",    false, 1, Color{100, 70, 40, 200}};
     m_tiles[TileId::PlanksWall]   = {TileId::PlanksWall,   "Planks Wall",  false, 1, Color{160, 120, 80, 200}};
+    m_tiles[TileId::Water]        = {TileId::Water,        "Water",        false, 0, Color{30, 100, 200, 150}};
+    m_tiles[TileId::Lava]         = {TileId::Lava,         "Lava",         false, 0, Color{255, 80, 0, 200}};
 }
 
 const TileDefinition& TileRegistry::get(TileId id) const {

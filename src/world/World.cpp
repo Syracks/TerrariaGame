@@ -3,6 +3,7 @@
 #include "TileRegistry.hpp"
 #include "core/Math.hpp"
 #include <cassert>
+#include <vector>
 
 bool World::isInBounds(int tileX, int tileY) const {
     return tileX >= 0 && tileX < constants::WORLD_WIDTH &&
@@ -57,6 +58,54 @@ void World::setWall(int tileX, int tileY, TileId id) {
     chunk->setWall(lx, ly, id);
 }
 
+uint8_t World::getWater(int tileX, int tileY) const {
+    if (!isInBounds(tileX, tileY))
+        return 0;
+    int cx = math::chunkFromTile(tileX);
+    int cy = math::chunkFromTile(tileY);
+    auto it = m_chunks.find({cx, cy});
+    if (it == m_chunks.end())
+        return 0;
+    int lx = math::localTileInChunk(tileX);
+    int ly = math::localTileInChunk(tileY);
+    return it->second->getWater(lx, ly);
+}
+
+void World::setWater(int tileX, int tileY, uint8_t amount) {
+    if (!isInBounds(tileX, tileY))
+        return;
+    int cx = math::chunkFromTile(tileX);
+    int cy = math::chunkFromTile(tileY);
+    Chunk* chunk = getOrCreateChunk(cx, cy);
+    int lx = math::localTileInChunk(tileX);
+    int ly = math::localTileInChunk(tileY);
+    chunk->setWater(lx, ly, amount);
+}
+
+uint8_t World::getLava(int tileX, int tileY) const {
+    if (!isInBounds(tileX, tileY))
+        return 0;
+    int cx = math::chunkFromTile(tileX);
+    int cy = math::chunkFromTile(tileY);
+    auto it = m_chunks.find({cx, cy});
+    if (it == m_chunks.end())
+        return 0;
+    int lx = math::localTileInChunk(tileX);
+    int ly = math::localTileInChunk(tileY);
+    return it->second->getLava(lx, ly);
+}
+
+void World::setLava(int tileX, int tileY, uint8_t amount) {
+    if (!isInBounds(tileX, tileY))
+        return;
+    int cx = math::chunkFromTile(tileX);
+    int cy = math::chunkFromTile(tileY);
+    Chunk* chunk = getOrCreateChunk(cx, cy);
+    int lx = math::localTileInChunk(tileX);
+    int ly = math::localTileInChunk(tileY);
+    chunk->setLava(lx, ly, amount);
+}
+
 bool World::isSolid(int tileX, int tileY) const {
     TileId id = getTile(tileX, tileY);
     if (id == TileId::Air) return false;
@@ -95,6 +144,14 @@ void World::generate(unsigned int seed, ProgressCallback progress) {
     m_seed = seed;
     WorldGenerator gen(*this, seed);
     gen.generate(progress);
+}
+
+void World::getChunksWithLiquid(std::vector<Chunk*>& outChunks) {
+    for (auto& [key, chunk] : m_chunks) {
+        if (chunk->hasLiquid()) {
+            outChunks.push_back(chunk.get());
+        }
+    }
 }
 
 void World::clear() {
