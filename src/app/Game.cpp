@@ -301,6 +301,15 @@ void Game::handleInput() {
     int slot = input::getHotbarSelection();
     if (slot >= 0) m_player->getInventory().selectSlot(slot);
 
+    int wheel = GetMouseWheelMove();
+    if (wheel != 0) {
+        int current = m_player->getInventory().getSelectedIndex();
+        current -= wheel;
+        if (current < 0) current += constants::HOTBAR_SLOTS;
+        if (current >= constants::HOTBAR_SLOTS) current %= constants::HOTBAR_SLOTS;
+        m_player->getInventory().selectSlot(current);
+    }
+
     if (input::isSavePressed()) saveGame();
 }
 

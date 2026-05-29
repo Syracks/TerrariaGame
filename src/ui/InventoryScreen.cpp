@@ -27,9 +27,33 @@ namespace {
     constexpr int MENU_BTN_Y = constants::SCREEN_HEIGHT - MENU_BTN_H - 15;
 }
 
+Rectangle InventoryScreen::getSlotRect(int index) const {
+    int gridW = GRID_COLS * SLOT_SIZE + (GRID_COLS - 1) * SLOT_MARGIN;
+    int gridX = (constants::SCREEN_WIDTH - gridW) / 2;
+    int col = index % GRID_COLS;
+    int row = index / GRID_COLS;
+    return {
+        static_cast<float>(gridX + col * (SLOT_SIZE + SLOT_MARGIN)),
+        static_cast<float>(GRID_Y + row * (SLOT_SIZE + SLOT_MARGIN)),
+        static_cast<float>(SLOT_SIZE),
+        static_cast<float>(SLOT_SIZE)
+    };
+}
+
+int InventoryScreen::getSlotAt(Vector2 mouse) const {
+    for (int i = 0; i < constants::INVENTORY_SLOTS; ++i) {
+        if (CheckCollisionPointRec(mouse, getSlotRect(i)))
+            return i;
+    }
+    return -1;
+}
+
 InventoryScreen::Action InventoryScreen::update(Player& player) {
     auto& inventory = player.getInventory();
     auto& slots = inventory.getSlots();
+    Vector2 mouse = GetMousePosition();
+
+    m_hoveredSlot = getSlotAt(mouse);
 
     int wheel = GetMouseWheelMove();
     if (wheel != 0) {
@@ -41,9 +65,11 @@ InventoryScreen::Action InventoryScreen::update(Player& player) {
         if (m_scrollOffset > maxOffset) m_scrollOffset = maxOffset;
     }
 
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        Vector2 mouse = GetMousePosition();
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && m_draggedStack.tileId != TileId::Air) {
+        m_draggedStack = {TileId::Air, 0};
+    }
 
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         Rectangle menuBtn = {
             static_cast<float>(MENU_BTN_X),
             static_cast<float>(MENU_BTN_Y),
@@ -52,6 +78,29 @@ InventoryScreen::Action InventoryScreen::update(Player& player) {
         };
         if (CheckCollisionPointRec(mouse, menuBtn)) {
             return Action::ReturnToMenu;
+        }
+
+        int slotIdx = getSlotAt(mouse);
+        if (slotIdx >= 0) {
+            if (m_draggedStack.tileId == TileId::Air) {
+                if (slots[slotIdx].tileId != TileId::Air) {
+                    m_draggedStack = slots[slotIdx];
+                    slots[slotIdx] = {TileId::Air, 0};
+                }
+            } else {
+                if (slots[slotIdx].tileId == TileId::Air) {
+                    slots[slotIdx] = m_draggedStack;
+                    m_draggedStack = {TileId::Air, 0};
+                } else if (slots[slotIdx].tileId == m_draggedStack.tileId) {
+                    slots[slotIdx].count += m_draggedStack.count;
+                    m_draggedStack = {TileId::Air, 0};
+                } else {
+                    ItemStack temp = slots[slotIdx];
+                    slots[slotIdx] = m_draggedStack;
+                    m_draggedStack = temp;
+                }
+            }
+            return Action::None;
         }
 
         const auto& recipes = RecipeDatabase::getAvailable(slots.begin(), slots.end());
@@ -100,7 +149,11 @@ void InventoryScreen::render(const Player& player) const {
         int y = GRID_Y + row * (SLOT_SIZE + SLOT_MARGIN);
         Color bg = (i < constants::HOTBAR_SLOTS) ? Color{50, 50, 60, 220} : Color{40, 40, 50, 200};
         DrawRectangle(x, y, SLOT_SIZE, SLOT_SIZE, bg);
-        DrawRectangleLines(x, y, SLOT_SIZE, SLOT_SIZE, Color{80, 80, 100, 255});
+
+        Color border = Color{80, 80, 100, 255};
+        if (i == m_hoveredSlot)
+            border = Color{180, 180, 220, 255};
+        DrawRectangleLines(x, y, SLOT_SIZE, SLOT_SIZE, border);
 
         if (slots[i].tileId != TileId::Air && slots[i].count > 0) {
             const auto& def = TileRegistry::instance().get(slots[i].tileId);
@@ -184,4 +237,21 @@ void InventoryScreen::render(const Player& player) const {
     const char* label = "Return to Menu";
     int textW = MeasureText(label, 16);
     DrawText(label, MENU_BTN_X + (MENU_BTN_W - textW) / 2, MENU_BTN_Y + 12, 16, WHITE);
+
+    if (m_draggedStack.tileId != TileId::Air && m_draggedStack.count > 0) {
+        int iconSize = 32;
+        int iconX = static_cast<int>(mouse.x) - iconSize / 2;
+        int iconY = static_cast<int>(mouse.y) - iconSize / 2;
+        const auto& def = TileRegistry::instance().get(m_draggedStack.tileId);
+        const Texture2D& tex = texMgr.getTexture(m_draggedStack.tileId);
+        if (tex.id > 0) {
+            float scale = static_cast<float>(iconSize) / tex.width;
+            DrawTextureEx(tex, {static_cast<float>(iconX), static_cast<float>(iconY)}, 0.0f, scale, WHITE);
+        } else {
+            DrawRectangle(iconX, iconY, iconSize, iconSize, def.color);
+        }
+        std::string countText = std::to_string(m_draggedStack.count);
+        DrawText(countText.c_str(), iconX + 4, iconY + iconSize - 16, 12, WHITE);
+        DrawRectangleLines(iconX, iconY, iconSize, iconSize, Color{200, 200, 220, 200});
+    }
 }

@@ -15,5 +15,5 @@ public:
 
 private:
     int m_selectedOption = 0;
-    static constexpr int OPTION_COUNT = 1;
+    float m_volume = 1.0f;
 };
