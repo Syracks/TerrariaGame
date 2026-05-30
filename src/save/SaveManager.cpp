@@ -99,6 +99,7 @@ bool SaveManager::save(const World& world, const Player& player, const std::stri
         return false;
     }
 
+    file << "TERRARIA_SAVE_V1\n";
     file << "WORLD " << world.getWorldWidth() << " " << world.getWorldHeight() << "\n";
     file << "PLAYER " << player.getPosition().x << " " << player.getPosition().y << "\n";
 
@@ -135,6 +136,11 @@ bool SaveManager::save(const World& world, const Player& player, const std::stri
                     int worldY = baseTileY + ly;
                     file << "WALL " << worldX << " " << worldY << " " << static_cast<int>(wall) << "\n";
                 }
+                if (chunk->isDoorOpen(lx, ly)) {
+                    int worldX = baseTileX + lx;
+                    int worldY = baseTileY + ly;
+                    file << "DOOR_OPEN " << worldX << " " << worldY << "\n";
+                }
             }
         }
     }
@@ -148,6 +154,18 @@ bool SaveManager::save(const World& world, const Player& player, const std::stri
     }
 
     file << "SELECTED " << inventory.getSelectedIndex() << "\n";
+
+    for (const auto& [key, chest] : world.getChests()) {
+        int tx = key.first;
+        int ty = key.second;
+        for (int i = 0; i < CHEST_SLOTS; ++i) {
+            if (chest[i].tileId != TileId::Air && chest[i].count > 0) {
+                file << "CHEST " << tx << " " << ty << " " << i << " "
+                     << static_cast<int>(chest[i].tileId) << " " << chest[i].count << "\n";
+            }
+        }
+    }
+
     file << "END\n";
     return true;
 }
@@ -161,6 +179,13 @@ bool SaveManager::load(World& world, Player& player, const std::string& filepath
 
     world.clear();
     std::string line;
+
+    std::getline(file, line);
+    if (line == "TERRARIA_SAVE_V1") {
+    } else {
+        file.clear();
+        file.seekg(0);
+    }
 
     while (std::getline(file, line)) {
         std::istringstream iss(line);
@@ -191,6 +216,10 @@ bool SaveManager::load(World& world, Player& player, const std::string& filepath
             int tx, ty, wallId;
             iss >> tx >> ty >> wallId;
             world.setWall(tx, ty, static_cast<TileId>(wallId));
+        } else if (keyword == "DOOR_OPEN") {
+            int tx, ty;
+            iss >> tx >> ty;
+            world.setDoorOpen(tx, ty, true);
         } else if (keyword == "INVENTORY") {
             int slotIdx, tileId, count;
             iss >> slotIdx >> tileId >> count;
@@ -203,10 +232,29 @@ bool SaveManager::load(World& world, Player& player, const std::string& filepath
             int idx;
             iss >> idx;
             player.getInventory().selectSlot(idx);
+        } else if (keyword == "CHEST") {
+            int tx, ty, slotIdx, tileId, count;
+            iss >> tx >> ty >> slotIdx >> tileId >> count;
+            if (slotIdx >= 0 && slotIdx < CHEST_SLOTS) {
+                auto& chest = world.getChest(tx, ty);
+                chest[slotIdx] = {static_cast<TileId>(tileId), count};
+            }
         } else if (keyword == "END") {
             break;
         }
     }
+
+    std::vector<int> heights(constants::WORLD_WIDTH, 0);
+    for (int x = 0; x < constants::WORLD_WIDTH; ++x) {
+        for (int y = 0; y < constants::WORLD_HEIGHT; ++y) {
+            if (world.getTile(x, y) != TileId::Air) {
+                heights[x] = y;
+                break;
+            }
+        }
+    }
+    std::vector<Biome> biomes(constants::WORLD_WIDTH, Biome::Forest);
+    world.setBiomeData(biomes, heights);
 
     return true;
 }

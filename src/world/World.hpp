@@ -2,11 +2,15 @@
 
 #include "Chunk.hpp"
 #include "Tile.hpp"
+#include "items/ItemStack.hpp"
 #include <unordered_map>
 #include <memory>
 #include <string>
 #include <utility>
 #include <functional>
+#include <array>
+
+constexpr int CHEST_SLOTS = 25;
 
 class World {
 public:
@@ -23,6 +27,22 @@ public:
     void setLava(int tileX, int tileY, uint8_t amount);
     bool isSolid(int tileX, int tileY) const;
     bool isInBounds(int tileX, int tileY) const;
+    bool isDoorOpen(int tileX, int tileY) const;
+    void setDoorOpen(int tileX, int tileY, bool open);
+
+    struct pair_hash {
+        std::size_t operator()(const std::pair<int,int>& p) const {
+            return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
+        }
+    };
+
+    std::array<ItemStack, CHEST_SLOTS>& getChest(int tileX, int tileY);
+    const std::array<ItemStack, CHEST_SLOTS>& getChestConst(int tileX, int tileY) const;
+    void removeChest(int tileX, int tileY);
+    const std::unordered_map<std::pair<int,int>, std::array<ItemStack, CHEST_SLOTS>, pair_hash>& getChests() const { return m_chests; }
+
+    using ChunkMap = std::unordered_map<std::pair<int,int>, std::unique_ptr<Chunk>, pair_hash>;
+    const ChunkMap& getChunks() const { return m_chunks; }
 
     using ProgressCallback = std::function<void(float)>;
     void generate(unsigned int seed, ProgressCallback progress = nullptr);
@@ -36,18 +56,16 @@ public:
     int getWorldWidth() const { return constants::WORLD_WIDTH; }
     int getWorldHeight() const { return constants::WORLD_HEIGHT; }
 
-    struct pair_hash {
-        std::size_t operator()(const std::pair<int,int>& p) const {
-            return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
-        }
-    };
-
-    using ChunkMap = std::unordered_map<std::pair<int,int>, std::unique_ptr<Chunk>, pair_hash>;
-    const ChunkMap& getChunks() const { return m_chunks; }
+    Biome getBiome(int tileX) const;
+    int getSurfaceHeight(int tileX) const;
+    void setBiomeData(const std::vector<Biome>& biomes, const std::vector<int>& heights);
 
 private:
     ChunkMap m_chunks;
     unsigned int m_seed = 0;
+    std::vector<Biome> m_biomeMap;
+    std::vector<int> m_surfaceHeight;
+    std::unordered_map<std::pair<int,int>, std::array<ItemStack, CHEST_SLOTS>, pair_hash> m_chests;
 
     void ensureChunkExists(int chunkX, int chunkY);
     Chunk* getOrCreateChunk(int chunkX, int chunkY);

@@ -15,6 +15,10 @@ void TextureManager::unloadAll() {
         }
     }
     m_textures.clear();
+    if (m_doorOpenTexture.id > 0) {
+        UnloadTexture(m_doorOpenTexture);
+        m_doorOpenTexture = {};
+    }
 }
 
 bool TextureManager::loadAll() {
@@ -24,7 +28,7 @@ bool TextureManager::loadAll() {
     loadTileTexture("grass", TileId::Grass);
     loadTileTexture("stone", TileId::Stone);
     loadTileTexture("wood", TileId::Wood);
-    loadTileTexture("leaf", TileId::Leaf);
+    loadTileTexture("leaves", TileId::Leaf);
     loadTileTexture("sand", TileId::Sand);
     loadTileTexture("snow", TileId::SnowBlock);
     loadTileTexture("ice", TileId::Ice);
@@ -47,14 +51,53 @@ bool TextureManager::loadAll() {
     loadTileTexture("torch", TileId::Torch);
     loadTileTexture("dirtwall", TileId::DirtWall);
     loadTileTexture("stonewall", TileId::StoneWall);
-    loadTileTexture("woodwall", TileId::WoodWall);
     loadTileTexture("plankswall", TileId::PlanksWall);
+    loadTileTexture("workbench", TileId::Workbench);
+    loadTileTexture("furnace", TileId::Furnace);
+    loadTileTexture("anvil", TileId::Anvil);
+    loadTileTexture("chest", TileId::ChestBlock);
+    loadTileTexture("copperbar", TileId::CopperBar);
+    loadTileTexture("ironbar", TileId::IronBar);
+    loadTileTexture("goldbar", TileId::GoldBar);
+    loadTileTexture("gel", TileId::Gel);
+    loadToolTexture("iron_axe", TileId::IronAxe);
+    loadToolTexture("iron_pickaxe", TileId::IronPickaxe);
+    loadToolTexture("iron_sword", TileId::IronSword);
+    loadToolTexture("copper_pickaxe", TileId::CopperPickaxe);
+    loadToolTexture("copper_axe", TileId::CopperAxe);
+    loadToolTexture("copper_sword", TileId::CopperSword);
+    loadToolTexture("gold_pickaxe", TileId::GoldPickaxe);
+    loadToolTexture("gold_axe", TileId::GoldAxe);
+    loadToolTexture("gold_sword", TileId::GoldSword);
+    loadToolTexture("copper_hammer", TileId::CopperHammer);
+    loadToolTexture("iron_hammer", TileId::IronHammer);
+    loadToolTexture("gold_hammer", TileId::GoldHammer);
+    loadTileTexture("hammer", TileId::Hammer);
+    loadTileTexture("door_opened", TileId::Door);
+    {
+        std::string path = "assets/textures/tiles/door_closed_0.png";
+        if (FileExists(path.c_str())) {
+            m_doorOpenTexture = LoadTexture(path.c_str());
+        }
+    }
+    loadTileTexture("wooden_chair", TileId::WoodenChair);
+    loadTileTexture("wooden_table", TileId::WoodenTable);
 
     return true;
 }
 
 void TextureManager::loadTileTexture(const std::string& tileName, TileId id) {
     std::string path = "assets/textures/tiles/" + tileName + "_0.png";
+    if (FileExists(path.c_str())) {
+        Texture2D tex = LoadTexture(path.c_str());
+        if (tex.id > 0) {
+            m_textures[id] = tex;
+        }
+    }
+}
+
+void TextureManager::loadToolTexture(const std::string& fileName, TileId id) {
+    std::string path = "assets/textures/tools/" + fileName + ".png";
     if (FileExists(path.c_str())) {
         Texture2D tex = LoadTexture(path.c_str());
         if (tex.id > 0) {

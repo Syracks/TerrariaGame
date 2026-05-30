@@ -63,7 +63,7 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera,
                 int py = static_cast<int>(math::tileToWorldY(tileY));
                 TileId foreground = world.getTile(tileX, tileY);
                 unsigned char wallAlpha = (foreground == TileId::Air ||
-                    !TileRegistry::instance().get(foreground).solid) ? 200 : 40;
+                    !world.isSolid(tileX, tileY)) ? 200 : 40;
                 const auto& wdef = registry.get(wall);
                 DrawRectangle(px, py, constants::TILE_SIZE, constants::TILE_SIZE,
                               Color{wdef.color.r, wdef.color.g, wdef.color.b, wallAlpha});
@@ -80,9 +80,21 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera,
             int px = static_cast<int>(math::tileToWorldX(tileX));
             int py = static_cast<int>(math::tileToWorldY(tileY));
 
-            const Texture2D& tex = texMgr.getTexture(id);
+            const Texture2D& tex = (id == TileId::Door && world.isDoorOpen(tileX, tileY))
+                ? texMgr.getDoorOpenTexture()
+                : texMgr.getTexture(id);
             if (tex.id > 0) {
-                DrawTexture(tex, px, py, WHITE);
+                if (id == TileId::Door && tex.height > constants::TILE_SIZE) {
+                    Rectangle source = {0, 0, static_cast<float>(constants::TILE_SIZE), static_cast<float>(constants::TILE_SIZE)};
+                    if (world.isInBounds(tileX, tileY + 1) && world.getTile(tileX, tileY + 1) == TileId::Door) {
+                        source.y = 0.0f;
+                    } else if (world.isInBounds(tileX, tileY - 1) && world.getTile(tileX, tileY - 1) == TileId::Door) {
+                        source.y = static_cast<float>(constants::TILE_SIZE);
+                    }
+                    DrawTextureRec(tex, source, {static_cast<float>(px), static_cast<float>(py)}, WHITE);
+                } else {
+                    DrawTexture(tex, px, py, WHITE);
+                }
             } else {
                 const auto& def = registry.get(id);
                 DrawRectangle(px, py, constants::TILE_SIZE, constants::TILE_SIZE, def.color);
@@ -176,8 +188,7 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera,
             int px = static_cast<int>(math::tileToWorldX(tileX));
             int py = static_cast<int>(math::tileToWorldY(tileY));
 
-            TileId foreground = world.getTile(tileX, tileY);
-            if (foreground != TileId::Air && TileRegistry::instance().get(foreground).solid)
+            if (world.isSolid(tileX, tileY))
                 continue;
 
             if (water > 0) {
@@ -212,8 +223,7 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera,
 bool isSolidLightingTile(const World& world, int x, int y) {
     if (!world.isInBounds(x, y))
         return false;
-    TileId id = world.getTile(x, y);
-    return id != TileId::Air && TileRegistry::instance().get(id).solid;
+    return world.isSolid(x, y);
 }
 
 int findMainSurfaceY(const World& world, int tileX) {
@@ -260,12 +270,14 @@ void RenderSystem::renderLightingOverlay(const World& world,
     int startTileX = std::max(0, math::worldToTileX(viewLeft) - 2);
     int endTileX   = std::min(constants::WORLD_WIDTH - 1, math::worldToTileX(viewRight) + 2);
 
-    std::vector<int> surfaceY(endTileX - startTileX + 1, constants::WORLD_HEIGHT);
+    static std::vector<int> surfaceY;
+    surfaceY.assign(endTileX - startTileX + 1, constants::WORLD_HEIGHT);
     for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
         surfaceY[tileX - startTileX] = findMainSurfaceY(world, tileX);
     }
 
-    std::vector<LightSrc> lights;
+    static std::vector<LightSrc> lights;
+    lights.clear();
 
     int startTileY = std::max(0, math::worldToTileY(viewTop) - 2);
     int endTileY   = std::min(constants::WORLD_HEIGHT - 1, math::worldToTileY(viewBottom) + 2);

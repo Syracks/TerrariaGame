@@ -3,7 +3,7 @@
 #include <raylib.h>
 #include <string>
 
-enum class TileId : int {
+enum class TileId : uint8_t {
     Air = 0,
     Grass = 1,
     Dirt = 2,
@@ -35,10 +35,36 @@ enum class TileId : int {
     WoodWall = 28,
     PlanksWall = 29,
     Water = 30,
-    Lava = 31
+    Lava = 31,
+    Workbench = 32,
+    Furnace = 33,
+    Anvil = 34,
+    ChestBlock = 35,
+    CopperBar = 36,
+    IronBar = 37,
+    GoldBar = 38,
+    Gel = 39,
+    CopperPickaxe = 40,
+    IronPickaxe = 41,
+    GoldPickaxe = 42,
+    CopperAxe = 43,
+    IronAxe = 44,
+    GoldAxe = 45,
+    CopperSword = 46,
+    IronSword = 47,
+    GoldSword = 48,
+    Hammer = 49,
+    CopperHammer = 50,
+    IronHammer = 51,
+    GoldHammer = 52,
+    Door = 53,
+    WoodenChair = 54,
+    WoodenTable = 55
 };
 
 constexpr int MAX_LIQUID_LEVEL = 255;
+
+enum class Biome { Forest, Desert, Snow, Plains, Jungle };
 
 struct LiquidInfo {
     uint8_t amount = 0;  // 0 = none, 255 = full

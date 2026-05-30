@@ -19,6 +19,8 @@ public:
     std::array<ItemStack, constants::INVENTORY_SLOTS>& getSlots() { return m_slots; }
     const std::array<ItemStack, constants::INVENTORY_SLOTS>& getSlots() const { return m_slots; }
 
+    void clear();
+
 private:
     std::array<ItemStack, constants::INVENTORY_SLOTS> m_slots;
     int m_selectedSlot = 0;

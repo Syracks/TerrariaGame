@@ -1,12 +1,42 @@
 #include "Tool.hpp"
 #include "world/World.hpp"
 #include "items/Inventory.hpp"
+#include "items/ItemDefinition.hpp"
 
 #include <vector>
 #include <utility>
 
 bool isTool(TileId id) {
-    return id == TileId::Pickaxe || id == TileId::Axe || id == TileId::Sword;
+    return id == TileId::Pickaxe || id == TileId::Axe || id == TileId::Sword ||
+           id == TileId::CopperPickaxe || id == TileId::IronPickaxe || id == TileId::GoldPickaxe ||
+           id == TileId::CopperAxe || id == TileId::IronAxe || id == TileId::GoldAxe ||
+           id == TileId::CopperSword || id == TileId::IronSword || id == TileId::GoldSword ||
+           id == TileId::Hammer || id == TileId::CopperHammer ||
+           id == TileId::IronHammer || id == TileId::GoldHammer;
+}
+
+bool isPickaxe(TileId id) {
+    return id == TileId::Pickaxe || id == TileId::CopperPickaxe ||
+           id == TileId::IronPickaxe || id == TileId::GoldPickaxe;
+}
+
+bool isAxe(TileId id) {
+    return id == TileId::Axe || id == TileId::CopperAxe ||
+           id == TileId::IronAxe || id == TileId::GoldAxe;
+}
+
+bool isSword_(TileId id) {
+    return id == TileId::Sword || id == TileId::CopperSword ||
+           id == TileId::IronSword || id == TileId::GoldSword;
+}
+
+int getToolMiningLevel(TileId id) {
+    return ItemDatabase::instance().get(id).tool.miningLevel;
+}
+
+bool isHammer(TileId id) {
+    return id == TileId::Hammer || id == TileId::CopperHammer ||
+           id == TileId::IronHammer || id == TileId::GoldHammer;
 }
 
 bool isTreeTile(TileId id) {
@@ -15,7 +45,7 @@ bool isTreeTile(TileId id) {
 
 bool isWallItem(TileId id) {
     return id == TileId::DirtWall || id == TileId::StoneWall ||
-           id == TileId::WoodWall || id == TileId::PlanksWall;
+           id == TileId::PlanksWall;
 }
 
 void fellTree(World& world, int tileX, int tileY, Inventory& inventory) {
@@ -62,5 +92,5 @@ void fellTree(World& world, int tileX, int tileY, Inventory& inventory) {
         world.setTile(p.first, p.second, TileId::Air);
 
     if (woodCount > 0)
-        inventory.addItem(TileId::Planks, woodCount);
+        inventory.addItem(TileId::Planks, woodCount * 4);
 }

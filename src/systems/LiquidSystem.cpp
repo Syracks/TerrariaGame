@@ -22,8 +22,7 @@ namespace {
 
 static bool isSolidBlock(const World& world, int x, int y) {
     if (!world.isInBounds(x, y)) return true;
-    TileId id = world.getTile(x, y);
-    return id != TileId::Air && TileRegistry::instance().get(id).solid;
+    return world.isSolid(x, y);
 }
 
 void LiquidSystem::update(World& world, float dt) {
@@ -32,11 +31,13 @@ void LiquidSystem::update(World& world, float dt) {
     if (accumulator < TICK_INTERVAL) return;
     accumulator = 0.0f;
 
-    std::vector<Chunk*> liquidChunks;
+    static std::vector<Chunk*> liquidChunks;
+    liquidChunks.clear();
     world.getChunksWithLiquid(liquidChunks);
     if (liquidChunks.empty()) return;
 
-    std::vector<std::pair<int,int>> changes;
+    static std::vector<std::pair<int,int>> changes;
+    changes.clear();
     changes.reserve(MAX_TILES_PER_TICK);
     int processed = 0;
 

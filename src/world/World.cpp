@@ -109,7 +109,32 @@ void World::setLava(int tileX, int tileY, uint8_t amount) {
 bool World::isSolid(int tileX, int tileY) const {
     TileId id = getTile(tileX, tileY);
     if (id == TileId::Air) return false;
+    if (id == TileId::Door && isDoorOpen(tileX, tileY)) return false;
     return TileRegistry::instance().get(id).solid;
+}
+
+bool World::isDoorOpen(int tileX, int tileY) const {
+    if (!isInBounds(tileX, tileY))
+        return false;
+    int cx = math::chunkFromTile(tileX);
+    int cy = math::chunkFromTile(tileY);
+    auto it = m_chunks.find({cx, cy});
+    if (it == m_chunks.end())
+        return false;
+    int lx = math::localTileInChunk(tileX);
+    int ly = math::localTileInChunk(tileY);
+    return it->second->isDoorOpen(lx, ly);
+}
+
+void World::setDoorOpen(int tileX, int tileY, bool open) {
+    if (!isInBounds(tileX, tileY))
+        return;
+    int cx = math::chunkFromTile(tileX);
+    int cy = math::chunkFromTile(tileY);
+    Chunk* chunk = getOrCreateChunk(cx, cy);
+    int lx = math::localTileInChunk(tileX);
+    int ly = math::localTileInChunk(tileY);
+    chunk->setDoorOpen(lx, ly, open);
 }
 
 Chunk* World::getChunk(int chunkX, int chunkY) {
@@ -154,6 +179,51 @@ void World::getChunksWithLiquid(std::vector<Chunk*>& outChunks) {
     }
 }
 
+Biome World::getBiome(int tileX) const {
+    if (m_biomeMap.empty()) return Biome::Forest;
+    if (tileX < 0) return m_biomeMap[0];
+    if (tileX >= static_cast<int>(m_biomeMap.size())) return m_biomeMap.back();
+    return m_biomeMap[tileX];
+}
+
+int World::getSurfaceHeight(int tileX) const {
+    if (m_surfaceHeight.empty()) return 0;
+    if (tileX < 0) return m_surfaceHeight[0];
+    if (tileX >= static_cast<int>(m_surfaceHeight.size())) return m_surfaceHeight.back();
+    return m_surfaceHeight[tileX];
+}
+
+void World::setBiomeData(const std::vector<Biome>& biomes, const std::vector<int>& heights) {
+    m_biomeMap = biomes;
+    m_surfaceHeight = heights;
+}
+
 void World::clear() {
     m_chunks.clear();
+    m_biomeMap.clear();
+    m_surfaceHeight.clear();
+    m_chests.clear();
+}
+
+std::array<ItemStack, CHEST_SLOTS>& World::getChest(int tileX, int tileY) {
+    auto key = std::make_pair(tileX, tileY);
+    auto it = m_chests.find(key);
+    if (it == m_chests.end()) {
+        std::array<ItemStack, CHEST_SLOTS> empty{};
+        empty.fill({TileId::Air, 0});
+        it = m_chests.emplace(key, empty).first;
+    }
+    return it->second;
+}
+
+void World::removeChest(int tileX, int tileY) {
+    m_chests.erase(std::make_pair(tileX, tileY));
+}
+
+const std::array<ItemStack, CHEST_SLOTS>& World::getChestConst(int tileX, int tileY) const {
+    static const std::array<ItemStack, CHEST_SLOTS> empty{};
+    auto it = m_chests.find(std::make_pair(tileX, tileY));
+    if (it == m_chests.end())
+        return empty;
+    return it->second;
 }

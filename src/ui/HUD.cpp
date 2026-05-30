@@ -1,6 +1,7 @@
 #include "HUD.hpp"
 #include "entities/Player.hpp"
 #include "items/Inventory.hpp"
+#include "items/ItemDefinition.hpp"
 #include "world/TileRegistry.hpp"
 #include "core/Constants.hpp"
 #include "core/TextureManager.hpp"
@@ -40,6 +41,7 @@ void HUD::render(const Player& player) {
     int startY = constants::SCREEN_HEIGHT - slotSize - 10;
 
     auto& texMgr = TextureManager::instance();
+    auto& itemDb = ItemDatabase::instance();
 
     for (int i = 0; i < constants::HOTBAR_SLOTS; ++i) {
         int x = startX + i * (slotSize + margin);

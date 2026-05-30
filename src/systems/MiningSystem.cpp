@@ -3,6 +3,7 @@
 #include "world/Tile.hpp"
 #include "world/TileRegistry.hpp"
 #include "items/Tool.hpp"
+#include "items/ItemDefinition.hpp"
 #include "entities/Player.hpp"
 #include "items/Inventory.hpp"
 #include "core/Math.hpp"
@@ -45,50 +46,90 @@ void MiningSystem::tryMineTile(World& world, Player& player, int tileX, int tile
 
     if (!isTool(heldId)) return;
 
-    if (heldId == TileId::Axe) {
+    if (isAxe(heldId)) {
         if (isTreeTile(tile))
             fellTree(world, tileX, tileY, player.getInventory());
-    } else if (heldId == TileId::Pickaxe) {
+        else
+            return;
+    } else if (isPickaxe(heldId)) {
         if (isTreeTile(tile)) return;
+
+        int toolLevel = getToolMiningLevel(heldId);
+        int requiredLevel = 0;
+        switch (tile) {
+            case TileId::CopperOre: requiredLevel = 1; break;
+            case TileId::IronOre:   requiredLevel = 1; break;
+            case TileId::GoldOre:   requiredLevel = 2; break;
+            case TileId::Hellstone: requiredLevel = 3; break;
+            case TileId::Granite:   requiredLevel = 1; break;
+            case TileId::Marble:    requiredLevel = 1; break;
+            default:                requiredLevel = 0; break;
+        }
+
+        if (toolLevel < requiredLevel) return;
+
         world.setTile(tileX, tileY, TileId::Air);
         player.getInventory().addItem(tile, 1);
+
+        if (tile == TileId::Door) {
+            if (world.isInBounds(tileX, tileY - 1) && world.getTile(tileX, tileY - 1) == TileId::Door)
+                world.setTile(tileX, tileY - 1, TileId::Air);
+            if (world.isInBounds(tileX, tileY + 1) && world.getTile(tileX, tileY + 1) == TileId::Door)
+                world.setTile(tileX, tileY + 1, TileId::Air);
+        }
     }
 }
 
 float MiningSystem::getMiningTime(TileId tile, TileId tool) {
     if (!isTool(tool)) return 0.0f;
 
-    if (tool == TileId::Pickaxe) {
+    float speedMult = ItemDatabase::instance().get(tool).tool.miningSpeed;
+
+    if (isPickaxe(tool)) {
+        int toolLevel = getToolMiningLevel(tool);
+        int requiredLevel = 0;
+        float baseTime = 0.0f;
+
         switch (tile) {
-            case TileId::Dirt:          return 0.15f;
-            case TileId::Grass:         return 0.15f;
-            case TileId::Sand:          return 0.15f;
-            case TileId::Mud:           return 0.15f;
-            case TileId::Clay:          return 0.20f;
-            case TileId::Gravel:        return 0.20f;
-            case TileId::SnowBlock:     return 0.15f;
-            case TileId::Ice:           return 0.25f;
-            case TileId::CopperOre:     return 0.30f;
-            case TileId::IronOre:       return 0.40f;
-            case TileId::GoldOre:       return 0.50f;
-            case TileId::Stone:         return 0.35f;
-            case TileId::Marble:        return 0.35f;
-            case TileId::Granite:       return 0.40f;
-            case TileId::MushroomGrass: return 0.15f;
-            case TileId::JungleGrass:   return 0.15f;
-            case TileId::Wood:          return 0.30f;
-            case TileId::Planks:        return 0.30f;
-            case TileId::Hellstone:     return 0.70f;
-            case TileId::Torch:         return 0.05f;
+            case TileId::Dirt:          baseTime = 0.15f; requiredLevel = 0; break;
+            case TileId::Grass:         baseTime = 0.15f; requiredLevel = 0; break;
+            case TileId::Sand:          baseTime = 0.15f; requiredLevel = 0; break;
+            case TileId::Mud:           baseTime = 0.15f; requiredLevel = 0; break;
+            case TileId::Clay:          baseTime = 0.20f; requiredLevel = 0; break;
+            case TileId::Gravel:        baseTime = 0.20f; requiredLevel = 0; break;
+            case TileId::SnowBlock:     baseTime = 0.15f; requiredLevel = 0; break;
+            case TileId::Ice:           baseTime = 0.25f; requiredLevel = 0; break;
+            case TileId::CopperOre:     baseTime = 0.40f; requiredLevel = 1; break;
+            case TileId::IronOre:       baseTime = 0.50f; requiredLevel = 1; break;
+            case TileId::GoldOre:       baseTime = 0.65f; requiredLevel = 2; break;
+            case TileId::Stone:         baseTime = 0.40f; requiredLevel = 0; break;
+            case TileId::Marble:        baseTime = 0.40f; requiredLevel = 1; break;
+            case TileId::Granite:       baseTime = 0.45f; requiredLevel = 1; break;
+            case TileId::MushroomGrass: baseTime = 0.15f; requiredLevel = 0; break;
+            case TileId::JungleGrass:   baseTime = 0.15f; requiredLevel = 0; break;
+            case TileId::Wood:          baseTime = 0.40f; requiredLevel = 0; break;
+            case TileId::Planks:        baseTime = 0.30f; requiredLevel = 0; break;
+            case TileId::Hellstone:     baseTime = 0.90f; requiredLevel = 3; break;
+            case TileId::Torch:         baseTime = 0.05f; requiredLevel = 0; break;
+            case TileId::Door:          baseTime = 0.30f; requiredLevel = 0; break;
+            case TileId::Workbench:     baseTime = 0.40f; requiredLevel = 0; break;
+            case TileId::Furnace:       baseTime = 0.50f; requiredLevel = 0; break;
+            case TileId::Anvil:         baseTime = 0.40f; requiredLevel = 0; break;
+            case TileId::ChestBlock:    baseTime = 0.40f; requiredLevel = 0; break;
             default:                    return 0.0f;
         }
+
+        if (toolLevel < requiredLevel) return 0.0f;
+
+        return baseTime / speedMult;
     }
 
-    if (tool == TileId::Axe) {
+    if (isAxe(tool)) {
+        float speedMult = ItemDatabase::instance().get(tool).tool.miningSpeed;
         switch (tile) {
-            case TileId::Wood:          return 0.30f;
-            case TileId::Leaf:          return 0.15f;
-            case TileId::Cactus:        return 0.25f;
+            case TileId::Wood:          return 0.30f / speedMult;
+            case TileId::Leaf:          return 0.15f / speedMult;
+            case TileId::Cactus:        return 0.25f / speedMult;
             default:                    return 0.0f;
         }
     }
@@ -120,6 +161,9 @@ void MiningSystem::tryPlace(World& world, Player& player, const Camera2D& camera
         return;
 
     if (isTool(selected->tileId))
+        return;
+
+    if (!ItemDatabase::instance().get(selected->tileId).placeable)
         return;
 
     if (!hasAdjacentSolid(world, tileX, tileY))

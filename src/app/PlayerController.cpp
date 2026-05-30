@@ -10,7 +10,7 @@ void PlayerController::update(Player& player) {
         player.stopMoving();
     }
 
-    if (input::isJumpPressed()) {
+    if (input::isJumpHeld()) {
         player.jump();
     }
 }

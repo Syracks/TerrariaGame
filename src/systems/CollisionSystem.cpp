@@ -74,6 +74,7 @@ bool CollisionSystem::resolveCollision(Entity& entity, const World& world, float
             }
         }
         if (hitGround) {
+            pos.y = newY;
             entity.setOnGround(true);
             vel.y = 0.0f;
         } else {
@@ -98,6 +99,13 @@ bool CollisionSystem::resolveCollision(Entity& entity, const World& world, float
         pos.y = newY;
         entity.setOnGround(false);
     }
+
+    float worldW = static_cast<float>(constants::WORLD_WIDTH * constants::TILE_SIZE);
+    float worldH = static_cast<float>(constants::WORLD_HEIGHT * constants::TILE_SIZE);
+    if (pos.x < 0.0f)                           { pos.x = 0.0f;                     vel.x = 0.0f; }
+    if (pos.x + bounds.width > worldW)          { pos.x = worldW - bounds.width;    vel.x = 0.0f; }
+    if (pos.y < 0.0f)                           { pos.y = 0.0f;                     vel.y = 0.0f; }
+    if (pos.y + bounds.height > worldH)         { pos.y = worldH - bounds.height;   vel.y = 0.0f; entity.setOnGround(true); }
 
     entity.setPosition(pos);
     entity.setVelocity(vel);

@@ -12,6 +12,11 @@ namespace {
     constexpr int HANDLE_R = 10;
     constexpr int VOLUME_Y = 220;
     constexpr int BACK_Y = 380;
+
+    bool isClicked(Rectangle rect) {
+        if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) return false;
+        return CheckCollisionPointRec(GetMousePosition(), rect);
+    }
 }
 
 SettingsMenu::SettingsMenu() = default;
@@ -19,7 +24,14 @@ SettingsMenu::SettingsMenu() = default;
 SettingsMenu::Action SettingsMenu::update() {
     Vector2 mouse = GetMousePosition();
 
-    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER)) {
+    Rectangle backRect = {
+        (constants::SCREEN_WIDTH - 160.0f) / 2.0f,
+        static_cast<float>(BACK_Y),
+        160.0f,
+        44.0f
+    };
+
+    if (IsKeyPressed(KEY_ESCAPE) || isClicked(backRect)) {
         return Action::Back;
     }
 
@@ -40,16 +52,7 @@ SettingsMenu::Action SettingsMenu::update() {
     };
 
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-        float handleX = SLIDER_X + m_volume * SLIDER_W;
-        Rectangle handleRect = {
-            handleX - HANDLE_R,
-            static_cast<float>(VOLUME_Y) - HANDLE_R,
-            HANDLE_R * 2.0f,
-            HANDLE_R * 2.0f
-        };
-
-        if (CheckCollisionPointRec(mouse, sliderTrack) ||
-            CheckCollisionPointRec(mouse, handleRect)) {
+        if (CheckCollisionPointRec(mouse, sliderTrack)) {
             m_volume = std::clamp((mouse.x - SLIDER_X) / static_cast<float>(SLIDER_W), 0.0f, 1.0f);
             SoundManager::instance().setMasterVolume(m_volume);
         }
@@ -83,8 +86,16 @@ void SettingsMenu::render() const {
 
     DrawText("Use Arrow Keys or click & drag", SLIDER_X, VOLUME_Y + 30, 16, Color{120, 120, 140, 255});
 
-    Color backColor = WHITE;
-    const char* backText = "Press ENTER to go back";
-    int backWidth = MeasureText(backText, 22);
-    DrawText(backText, (constants::SCREEN_WIDTH - backWidth) / 2, BACK_Y, 22, backColor);
+    Rectangle backRect = {
+        (constants::SCREEN_WIDTH - 160.0f) / 2.0f,
+        static_cast<float>(BACK_Y),
+        160.0f,
+        44.0f
+    };
+    bool backHov = CheckCollisionPointRec(GetMousePosition(), backRect);
+    DrawRectangleRec(backRect, backHov ? Color{50, 45, 45, 255} : Color{35, 35, 35, 255});
+    DrawRectangleLinesEx(backRect, 1, backHov ? Color{180, 100, 100, 255} : Color{60, 60, 60, 255});
+    const char* backText = "Back";
+    DrawText(backText, backRect.x + (160 - MeasureText(backText, 24)) / 2,
+             backRect.y + 10, 24, backHov ? WHITE : GRAY);
 }

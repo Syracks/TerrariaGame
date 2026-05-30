@@ -22,8 +22,6 @@ private:
         float rangeF(float min, float max);
     };
 
-    enum class Biome { Forest, Desert, Snow, Plains, Mushroom, Jungle };
-
     struct PerlinNoise {
         std::vector<int> perm;
         PerlinNoise(unsigned int seed);

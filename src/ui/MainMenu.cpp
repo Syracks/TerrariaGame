@@ -25,6 +25,7 @@ void MainMenu::reset() {
     m_editingName = false;
     m_worldSizeIndex = 1;
     m_selectedSlot = -1;
+    m_confirmDeleteSlot = -1;
 }
 
 void MainMenu::refreshSlots() {
@@ -133,7 +134,6 @@ MenuResult MainMenu::update() {
 
         yPos += 70;
 
-        const char* sizes[] = {"Small", "Medium", "Large"};
         Rectangle sizeRects[3];
         int sizeStartX = fieldX;
         for (int i = 0; i < 3; ++i) {
@@ -251,12 +251,20 @@ MenuResult MainMenu::update() {
         int slotStartY = 150;
 
         Rectangle slotRects[SaveManager::SLOT_COUNT];
+        Rectangle delRects[SaveManager::SLOT_COUNT];
         for (int i = 0; i < SaveManager::SLOT_COUNT; ++i) {
+            int yPos = slotStartY + i * (slotH + 10);
             slotRects[i] = {
                 static_cast<float>(slotStartX),
-                static_cast<float>(slotStartY + i * (slotH + 10)),
+                static_cast<float>(yPos),
                 static_cast<float>(slotW),
                 static_cast<float>(slotH)
+            };
+            delRects[i] = {
+                static_cast<float>(slotStartX + slotW - 100),
+                static_cast<float>(yPos + 12),
+                80.0f,
+                36.0f
             };
         }
 
@@ -270,43 +278,56 @@ MenuResult MainMenu::update() {
             static_cast<float>(backH)
         };
 
-        
-        for (int i = 0; i < SaveManager::SLOT_COUNT; ++i) {
-            if (isClicked(slotRects[i])) {
-                if (m_slots[i].occupied) {
-                    result.type = MenuResult::LoadSlot;
-                    result.slot = i;
-                    reset();
-                    return result;
-                }
-            }
-        }
-        if (isClicked(backRect)) {
-            m_screen = Screen::Main;
-            m_selectedOption = 1;
-        }
+        if (m_confirmDeleteSlot >= 0 && m_confirmDeleteSlot < SaveManager::SLOT_COUNT) {
+            int dialogW = 360;
+            int dialogH = 160;
+            int dialogX = (constants::SCREEN_WIDTH - dialogW) / 2;
+            int dialogY = (constants::SCREEN_HEIGHT - dialogH) / 2;
+            Rectangle yesRect = {static_cast<float>(dialogX + 50), static_cast<float>(dialogY + 90), 100.0f, 40.0f};
+            Rectangle noRect = {static_cast<float>(dialogX + dialogW - 150), static_cast<float>(dialogY + 90), 100.0f, 40.0f};
 
-        
-        if (mouseMoved) {
-            bool hovered = false;
+            if (isClicked(yesRect)) {
+                SaveManager::deleteSlot(m_confirmDeleteSlot);
+                m_confirmDeleteSlot = -1;
+                refreshSlots();
+            } else if (isClicked(noRect)) {
+                m_confirmDeleteSlot = -1;
+            } else if (IsKeyPressed(KEY_ESCAPE)) {
+                m_confirmDeleteSlot = -1;
+            }
+        } else {
             for (int i = 0; i < SaveManager::SLOT_COUNT; ++i) {
-                if (isHovered(slotRects[i])) {
-                    m_selectedOption = i;
-                    hovered = true;
-                    break;
+                if (m_slots[i].occupied && isClicked(delRects[i])) {
+                    m_confirmDeleteSlot = i;
+                } else if (isClicked(slotRects[i])) {
+                    if (m_slots[i].occupied) {
+                        result.type = MenuResult::LoadSlot;
+                        result.slot = i;
+                        reset();
+                        return result;
+                    }
                 }
             }
-            if (!hovered && isHovered(backRect))
-                m_selectedOption = SaveManager::SLOT_COUNT;
-        }
-        if (IsKeyPressed(KEY_DELETE) &&
-            m_selectedOption >= 0 && m_selectedOption < SaveManager::SLOT_COUNT &&
-            m_slots[m_selectedOption].occupied) {
-            SaveManager::deleteSlot(m_selectedOption);
-            refreshSlots();
+            if (isClicked(backRect)) {
+                m_screen = Screen::Main;
+                m_selectedOption = 1;
+            }
+
+            if (mouseMoved) {
+                bool hovered = false;
+                for (int i = 0; i < SaveManager::SLOT_COUNT; ++i) {
+                    if (isHovered(slotRects[i])) {
+                        m_selectedOption = i;
+                        hovered = true;
+                        break;
+                    }
+                }
+                if (!hovered && isHovered(backRect))
+                    m_selectedOption = SaveManager::SLOT_COUNT;
+            }
         }
 
-        if (IsKeyPressed(KEY_ESCAPE)) {
+        if (IsKeyPressed(KEY_ESCAPE) && m_confirmDeleteSlot < 0) {
             m_screen = Screen::Main;
             m_selectedOption = 1;
         }
@@ -472,10 +493,17 @@ void MainMenu::render() const {
                 DrawText(m_slots[i].name.c_str(), slotStartX + 140, yPos + 8, 22, WHITE);
                 const char* sz = worldSizeName(m_slots[i].size);
                 DrawText(sz, slotStartX + 140, yPos + 32, 16, DARKGRAY);
-                if (hovered) {
-                    DrawText("DEL to delete", slotStartX + slotW - 130, yPos + 18, 16,
-                             Color{180, 80, 80, 255});
-                }
+
+                Rectangle delRect = {
+                    static_cast<float>(slotStartX + slotW - 100),
+                    static_cast<float>(yPos + 12), 80.0f, 36.0f
+                };
+                bool delHovered = CheckCollisionPointRec(GetMousePosition(), delRect);
+                DrawRectangleRec(delRect, delHovered ? Color{180, 40, 40, 255} : Color{120, 30, 30, 255});
+                DrawRectangleLinesEx(delRect, 1, delHovered ? Color{255, 80, 80, 255} : Color{180, 50, 50, 255});
+                const char* delText = "Delete";
+                int delTW = MeasureText(delText, 18);
+                DrawText(delText, slotStartX + slotW - 100 + (80 - delTW) / 2, yPos + 18, 18, WHITE);
             } else {
                 DrawText("Empty", slotStartX + 140, yPos + 18, 20, Color{80, 80, 80, 255});
             }
@@ -493,5 +521,37 @@ void MainMenu::render() const {
         const char* backText = "Back";
         DrawText(backText, backX + (backW - MeasureText(backText, 22)) / 2,
                  backY + 7, 22, backHovered ? WHITE : GRAY);
+
+        if (m_confirmDeleteSlot >= 0 && m_confirmDeleteSlot < SaveManager::SLOT_COUNT) {
+            DrawRectangle(0, 0, constants::SCREEN_WIDTH, constants::SCREEN_HEIGHT, Color{0, 0, 0, 160});
+
+            int dialogW = 360;
+            int dialogH = 160;
+            int dialogX = (constants::SCREEN_WIDTH - dialogW) / 2;
+            int dialogY = (constants::SCREEN_HEIGHT - dialogH) / 2;
+            DrawRectangle(dialogX, dialogY, dialogW, dialogH, Color{30, 30, 40, 255});
+            DrawRectangleLines(dialogX, dialogY, dialogW, dialogH, Color{180, 80, 80, 255});
+
+            const char* msg = "Delete this world?";
+            int msgW = MeasureText(msg, 24);
+            DrawText(msg, dialogX + (dialogW - msgW) / 2, dialogY + 30, 24, WHITE);
+
+            const SlotInfo& si = m_slots[m_confirmDeleteSlot];
+            std::string info = si.name + " (" + worldSizeName(si.size) + ")";
+            int infoW = MeasureText(info.c_str(), 18);
+            DrawText(info.c_str(), dialogX + (dialogW - infoW) / 2, dialogY + 60, 18, Color{180, 180, 180, 255});
+
+            Rectangle yesRect = {static_cast<float>(dialogX + 50), static_cast<float>(dialogY + 95), 100.0f, 40.0f};
+            Rectangle noRect = {static_cast<float>(dialogX + dialogW - 150), static_cast<float>(dialogY + 95), 100.0f, 40.0f};
+
+            bool yesHov = CheckCollisionPointRec(GetMousePosition(), yesRect);
+            bool noHov = CheckCollisionPointRec(GetMousePosition(), noRect);
+            DrawRectangleRec(yesRect, yesHov ? Color{160, 40, 40, 255} : Color{120, 30, 30, 255});
+            DrawRectangleLinesEx(yesRect, 1, yesHov ? Color{255, 80, 80, 255} : Color{180, 50, 50, 255});
+            DrawText("Yes", yesRect.x + (100 - MeasureText("Yes", 22)) / 2, yesRect.y + 9, 22, WHITE);
+            DrawRectangleRec(noRect, noHov ? Color{50, 50, 60, 255} : Color{35, 35, 45, 255});
+            DrawRectangleLinesEx(noRect, 1, noHov ? WHITE : Color{80, 80, 100, 255});
+            DrawText("No", noRect.x + (100 - MeasureText("No", 22)) / 2, noRect.y + 9, 22, WHITE);
+        }
     }
 }

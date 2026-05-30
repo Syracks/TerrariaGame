@@ -88,26 +88,30 @@ WorldGenerator::WorldGenerator(World& world, unsigned int seed)
     : m_world(world), m_seed(seed), m_noise(seed), m_rng(seed) {
 }
 
-WorldGenerator::Biome WorldGenerator::getBiome(int tileX) const {
-    float n = m_noise.octaveNoise(static_cast<float>(tileX) * 0.005f, 0.0f, 4, 0.5f, 1.0f);
-    n = n * 0.5f + 0.5f;
-    if (n < 0.10f) return Biome::Snow;
-    if (n < 0.22f) return Biome::Desert;
-    if (n < 0.38f) return Biome::Plains;
-    if (n < 0.55f) return Biome::Forest;
-    if (n < 0.78f) return Biome::Jungle;
-    return Biome::Mushroom;
+Biome WorldGenerator::getBiome(int tileX) const {
+    float frac = static_cast<float>(tileX) / static_cast<float>(constants::WORLD_WIDTH);
+
+    float n = m_noise.octaveNoise(static_cast<float>(tileX) * 0.005f, 0.0f, 2, 0.5f, 1.0f) * 0.02f;
+    frac += n;
+
+    if (frac < 0.12f) return Biome::Snow;
+    if (frac < 0.28f) return Biome::Desert;
+    if (frac < 0.60f) {
+        float m = m_noise.octaveNoise(static_cast<float>(tileX) * 0.015f, 100.0f, 3, 0.5f, 1.0f);
+        if (m > 0.4f) return Biome::Forest;
+        return Biome::Plains;
+    }
+    return Biome::Jungle;
 }
 
-static float baseHeightForBiome(int biome) {
+static float baseHeightForBiome(Biome biome) {
     switch (biome) {
-        case 0:  return 0.28f;
-        case 1:  return 0.40f;
-        case 2:  return 0.32f;
-        case 3:  return 0.34f;
-        case 4:  return 0.33f;
-        case 5:  return 0.36f;
-        default: return 0.34f;
+        case Biome::Forest: return 0.28f;
+        case Biome::Desert: return 0.40f;
+        case Biome::Snow:   return 0.32f;
+        case Biome::Plains: return 0.34f;
+        case Biome::Jungle: return 0.36f;
+        default:            return 0.34f;
     }
 }
 
@@ -117,7 +121,7 @@ int WorldGenerator::getSurfaceHeight(int tileX) const {
     float nSmall = m_noise.octaveNoise(tileX * 0.020f, 200.0f,  2, 0.5f, 1.0f);
 
     Biome biome = getBiome(tileX);
-    float baseFrac = baseHeightForBiome(static_cast<int>(biome));
+    float baseFrac = baseHeightForBiome(biome);
     const float blendRadius = 20.0f;
     float blendedFrac = 0.0f;
     float totalWeight = 0.0f;
@@ -125,7 +129,7 @@ int WorldGenerator::getSurfaceHeight(int tileX) const {
         int tx = tileX + dx;
         if (tx < 0 || tx >= constants::WORLD_WIDTH) continue;
         float w = 1.0f - std::abs(static_cast<float>(dx)) / blendRadius;
-        blendedFrac += baseHeightForBiome(static_cast<int>(getBiome(tx))) * w;
+        blendedFrac += baseHeightForBiome(getBiome(tx)) * w;
         totalWeight += w;
     }
     if (totalWeight > 0.0f) baseFrac = blendedFrac / totalWeight;
@@ -398,12 +402,6 @@ void WorldGenerator::repairSurfaceLayer() {
                 lowerFill = TileId::Mud;
                 break;
 
-            case Biome::Mushroom:
-                surfaceTile = TileId::MushroomGrass;
-                upperFill = TileId::Mud;
-                lowerFill = TileId::Stone;
-                break;
-
             default:
                 surfaceTile = TileId::Grass;
                 upperFill = TileId::Dirt;
@@ -437,6 +435,7 @@ void WorldGenerator::generate(ProgressCallback progress) {
     if (progress) progress(0.05f);
 
     protectSpawnArea();
+    m_world.setBiomeData(m_biomeMap, m_surfaceHeight);
     if (progress) progress(0.10f);
 
     generateTerrain();
@@ -491,7 +490,6 @@ void WorldGenerator::generateTerrain() {
                     case Biome::Desert:   fill = TileId::Sand; break;
                     case Biome::Snow:     fill = TileId::SnowBlock; break;
                     case Biome::Jungle:   fill = TileId::Mud; break;
-                    case Biome::Mushroom: fill = TileId::Mud; break;
                     default:              fill = TileId::Dirt; break;
                 }
                 break;
@@ -520,7 +518,6 @@ void WorldGenerator::generateTerrain() {
                 switch (biome) {
                     case Biome::Snow:     fill = TileId::SnowBlock; break;
                     case Biome::Desert:   fill = TileId::Sand; break;
-                    case Biome::Mushroom: fill = TileId::MushroomGrass; break;
                     case Biome::Jungle:   fill = TileId::JungleGrass; break;
                     default:              fill = TileId::Grass; break;
                 }
@@ -534,14 +531,12 @@ void WorldGenerator::generateTerrain() {
                 if (biome == Biome::Desert)       fill = TileId::Sand;
                 else if (biome == Biome::Snow)    fill = TileId::SnowBlock;
                 else if (biome == Biome::Jungle)  fill = TileId::Mud;
-                else if (biome == Biome::Mushroom) fill = TileId::Mud;
                 else                              fill = TileId::Dirt;
                 applyTransitionMix(biome, tileX, fill);
             } else if (tileY < dirtEnd) {
                 switch (biome) {
                     case Biome::Desert:   fill = TileId::Sand; break;
                     case Biome::Jungle:   fill = TileId::Mud; break;
-                    case Biome::Mushroom: fill = TileId::Mud; break;
                     default:              fill = TileId::Dirt; break;
                 }
                 if (biome == Biome::Snow && tileY < surfaceY + 6)
@@ -549,7 +544,6 @@ void WorldGenerator::generateTerrain() {
             } else if (tileY < stoneEnd) {
                 if (biome == Biome::Desert)       fill = TileId::Sand;
                 else if (biome == Biome::Jungle)  fill = TileId::Mud;
-                else if (biome == Biome::Mushroom) fill = (tileY < dirtEnd + 15) ? TileId::Mud : TileId::Stone;
                 else                              fill = TileId::Stone;
             } else {
                 fill = TileId::Stone;
@@ -602,7 +596,6 @@ void WorldGenerator::generateCaves() {
             float cavernContrib = std::max(0.0f, cavernNoise - 0.55f) * 0.22f;
 
             float biomeBonus = 0.0f;
-            if (biome == Biome::Mushroom) biomeBonus = 0.12f;
             if (biome == Biome::Jungle) biomeBonus = 0.05f;
 
             float combined = caveNoise + tunnelContrib + cavernContrib + biomeBonus;
@@ -662,8 +655,7 @@ void WorldGenerator::generateOreVeins() {
 }
 
 static bool canGrowTreeOn(TileId surface) {
-    return surface == TileId::Grass || surface == TileId::MushroomGrass ||
-           surface == TileId::JungleGrass || surface == TileId::Sand;
+    return surface == TileId::Grass || surface == TileId::JungleGrass || surface == TileId::Sand;
 }
 
 void WorldGenerator::generateTrees() {
@@ -685,8 +677,6 @@ void WorldGenerator::generateTrees() {
             if (m_rng.range(0, 7) != 0) continue;
         } else if (biome == Biome::Plains) {
             if (m_rng.range(0, 18) != 0) continue;
-        } else if (biome == Biome::Mushroom) {
-            if (m_rng.range(0, 6) != 0) continue;
         } else if (biome == Biome::Jungle) {
             if (m_rng.range(0, 6) != 0) continue;
         } else if (biome == Biome::Desert && surfaceTile == TileId::Sand) {
@@ -775,53 +765,6 @@ void WorldGenerator::generateTrees() {
             lastTreeX = tileX;
             continue;
         }
-        if (biome == Biome::Mushroom) {
-            int stemHeight = 3 + m_rng.range(0, 3);
-            int capRadius = 2 + m_rng.range(0, 2);
-            bool blocked = false;
-            for (int dy = 1; dy <= stemHeight + capRadius + 1; ++dy) {
-                int y = surfaceY - dy;
-                if (y < 0 || m_world.getTile(tileX, y) != TileId::Air) {
-                    blocked = true;
-                    break;
-                }
-            }
-            if (blocked) continue;
-            for (int dx = -capRadius - 1; dx <= capRadius + 1; ++dx) {
-                for (int dy = -capRadius - 1; dy <= 0; ++dy) {
-                    int lx = tileX + dx;
-                    int ly = surfaceY - stemHeight + dy;
-                    if (lx >= 0 && lx < constants::WORLD_WIDTH && ly >= 0) {
-                        if (m_world.getTile(lx, ly) == TileId::Leaf) {
-                            blocked = true;
-                            break;
-                        }
-                    }
-                }
-                if (blocked) break;
-            }
-            if (blocked) continue;
-            for (int dy = 1; dy <= stemHeight; ++dy) {
-                m_world.setTile(tileX, surfaceY - dy, TileId::Wood);
-            }
-            for (int dy = -capRadius; dy <= 0; ++dy) {
-                int r = capRadius + dy;
-                for (int dx = -r; dx <= r; ++dx) {
-                    if (dx == 0 && dy >= 0) continue;
-                    int lx = tileX + dx;
-                    int ly = surfaceY - stemHeight + dy;
-                    if (lx >= 0 && lx < constants::WORLD_WIDTH && ly >= 0) {
-                        if (m_world.getTile(lx, ly) == TileId::Air) {
-                            if (std::abs(dx) == r && m_rng.range(0, 2) == 0) continue;
-                            m_world.setTile(lx, ly, TileId::Leaf);
-                        }
-                    }
-                }
-            }
-            lastTreeX = tileX;
-            continue;
-        }
-        
         int trunkHeight = 4 + m_rng.range(0, 3);
         bool blocked = false;
         for (int dy = 1; dy <= trunkHeight + 2; ++dy) {
@@ -927,7 +870,7 @@ void WorldGenerator::generateUndergroundCabins() {
         int cx = m_rng.range(30, constants::WORLD_WIDTH - 30);
         Biome biome = m_biomeMap[cx];
 
-        if (biome == Biome::Desert || biome == Biome::Snow || biome == Biome::Mushroom)
+        if (biome == Biome::Desert || biome == Biome::Snow)
             continue;
 
         int surfaceY = m_surfaceHeight[cx];
@@ -999,28 +942,72 @@ void WorldGenerator::generateUndergroundCabins() {
 }
 
 void WorldGenerator::generateOceans() {
-    int oceanWidth = 60;
-    int oceanDepth = 25;
+    int oceanWidth = 62;
+    int oceanDepth = 18;
+    int waterWidth = 28;
 
     for (int side = 0; side < 2; ++side) {
-        int startX = (side == 0) ? 0 : constants::WORLD_WIDTH - oceanWidth;
-        int endX = (side == 0) ? oceanWidth : constants::WORLD_WIDTH;
+        for (int x = 0; x < oceanWidth; ++x) {
+            int tileX = (side == 0) ? x : constants::WORLD_WIDTH - 1 - x;
+            if (tileX < 0 || tileX >= constants::WORLD_WIDTH) continue;
 
-        for (int x = startX; x < endX; ++x) {
-            if (x < 0 || x >= constants::WORLD_WIDTH) continue;
-            int sy = m_surfaceHeight[x];
+            int baseSurface = m_surfaceHeight[tileX];
 
-            int pitBottom = std::min(constants::WORLD_HEIGHT - 5, sy + oceanDepth);
+            float frac = static_cast<float>(x) / static_cast<float>(oceanWidth);
+            int surfaceY = baseSurface + static_cast<int>(frac * frac * oceanDepth * 1.5f);
+            surfaceY = std::clamp(surfaceY, 3, constants::WORLD_HEIGHT - 10);
 
-            for (int y = sy; y <= pitBottom; ++y) {
-                TileId t = m_world.getTile(x, y);
-                if (t == TileId::Air || t == TileId::Wood || t == TileId::Planks ||
-                    t == TileId::Hellstone) continue;
-                m_world.setTile(x, y, TileId::Air);
+            m_surfaceHeight[tileX] = surfaceY;
+            m_biomeMap[tileX] = Biome::Forest;
+
+            for (int y = 0; y < surfaceY; ++y) {
+                if (m_world.isInBounds(tileX, y)) {
+                    m_world.setTile(tileX, y, TileId::Air);
+                    m_world.setWall(tileX, y, TileId::Air);
+                }
             }
 
-            for (int y = sy + 3; y <= pitBottom; ++y) {
-                m_world.setWater(x, y, MAX_LIQUID_LEVEL);
+            if (x < waterWidth) {
+                int bottom = std::min(constants::WORLD_HEIGHT - 5, surfaceY + oceanDepth);
+                for (int y = surfaceY; y < bottom; ++y) {
+                    m_world.setTile(tileX, y, TileId::Air);
+                    m_world.setWater(tileX, y, MAX_LIQUID_LEVEL);
+                }
+                for (int y = bottom; y <= bottom + 3 && y < constants::WORLD_HEIGHT; ++y) {
+                    m_world.setTile(tileX, y, TileId::Sand);
+                }
+            } else {
+                m_world.setTile(tileX, surfaceY, TileId::Sand);
+                for (int y = surfaceY + 1; y <= surfaceY + 6 && y < constants::WORLD_HEIGHT; ++y) {
+                    m_world.setTile(tileX, y, TileId::Sand);
+                }
+
+                if ((x % 9) == 4 && m_rng.range(0, 2) == 0) {
+                    int trunk = 3 + m_rng.range(0, 2);
+                    bool ok = true;
+                    for (int dy = 1; dy <= trunk + 2; ++dy) {
+                        int y = surfaceY - dy;
+                        if (y < 0 || m_world.getTile(tileX, y) != TileId::Air) { ok = false; break; }
+                    }
+                    if (ok) {
+                        for (int dy = 1; dy <= trunk; ++dy)
+                            m_world.setTile(tileX, surfaceY - dy, TileId::Wood);
+                        for (int dx = -2; dx <= 2; ++dx) {
+                            for (int dy = -2; dy <= 0; ++dy) {
+                                int lx = tileX + dx;
+                                int ly = surfaceY - trunk + dy;
+                                if (lx < 0 || lx >= constants::WORLD_WIDTH || ly < 0) continue;
+                                if (dx == 0 && dy == 0) continue;
+                                int dist = std::abs(dx) + std::abs(dy);
+                                if (dist > 3) continue;
+                                if (m_world.getTile(lx, ly) == TileId::Air) {
+                                    if (dist > 2 && m_rng.range(0, 2) == 0) continue;
+                                    m_world.setTile(lx, ly, TileId::Leaf);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

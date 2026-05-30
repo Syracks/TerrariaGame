@@ -12,6 +12,7 @@ public:
     void unloadAll();
 
     const Texture2D& getTexture(TileId id) const;
+    const Texture2D& getDoorOpenTexture() const { return m_doorOpenTexture; }
 
 private:
     TextureManager() = default;
@@ -20,6 +21,8 @@ private:
     TextureManager& operator=(const TextureManager&) = delete;
 
     void loadTileTexture(const std::string& tileName, TileId id);
+    void loadToolTexture(const std::string& fileName, TileId id);
 
     std::unordered_map<TileId, Texture2D> m_textures;
+    Texture2D m_doorOpenTexture{};
 };

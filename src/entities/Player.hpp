@@ -41,13 +41,13 @@ public:
     const Inventory& getInventory() const noexcept;
 
     float getReach() const noexcept;
+    void clearInventory();
 
 private:
     void applyHorizontalMovement();
     void applyGravity(float dt);
     void advanceAnimation(float dt, int frameCount);
 
-    void loadSheetPair(Texture2D& normal, Texture2D& flipped, const char* path);
     void buildWalkFrames();
     void buildJumpFrames();
 
@@ -62,13 +62,8 @@ private:
     Inventory m_inventory;
 
     Texture2D m_idleTex{};
-    Texture2D m_idleFlipped{};
-
     Texture2D m_walkTex{};
-    Texture2D m_walkFlipped{};
-
     Texture2D m_jumpTex{};
-    Texture2D m_jumpFlipped{};
 
     std::array<FrameInfo, 25> m_walkFrames;
     std::array<FrameInfo, 25> m_jumpFrames;

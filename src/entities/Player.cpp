@@ -1,6 +1,7 @@
 #include "entities/Player.hpp"
 #include "core/Constants.hpp"
 #include "core/TextureManager.hpp"
+#include "core/SoundManager.hpp"
 #include "items/Tool.hpp"
 
 #include <cmath>
@@ -33,16 +34,14 @@ Player::Player()
     m_height = PLAYER_HEIGHT;
 }
 
-void Player::loadSheetPair(Texture2D& normal, Texture2D& flipped, const char* path) {
-    if (normal.id > 0) { UnloadTexture(normal); normal = {}; }
-    if (flipped.id > 0) { UnloadTexture(flipped); flipped = {}; }
+static Texture2D loadTexture(const char* path) {
+    Texture2D tex{};
     Image img = LoadImage(path);
     if (img.data != nullptr) {
-        normal = LoadTextureFromImage(img);
-        ImageFlipHorizontal(&img);
-        flipped = LoadTextureFromImage(img);
+        tex = LoadTextureFromImage(img);
         UnloadImage(img);
     }
+    return tex;
 }
 
 void Player::buildWalkFrames() {
@@ -66,23 +65,17 @@ void Player::buildJumpFrames() {
 
 void Player::load() {
     unload();
-    loadSheetPair(m_idleTex, m_idleFlipped, "assets/textures/player/player.png");
-    loadSheetPair(m_walkTex, m_walkFlipped, "assets/textures/player/player_walk.png");
-    loadSheetPair(m_jumpTex, m_jumpFlipped, "assets/textures/player/player_jump.png");
+    m_idleTex = loadTexture("assets/textures/player/player.png");
+    m_walkTex = loadTexture("assets/textures/player/player_walk.png");
+    m_jumpTex = loadTexture("assets/textures/player/player_jump.png");
     buildWalkFrames();
     buildJumpFrames();
 }
 
 void Player::unload() {
-    auto unload = [](Texture2D& tex) {
-        if (tex.id > 0) { UnloadTexture(tex); tex = {}; }
-    };
-    unload(m_idleTex);
-    unload(m_idleFlipped);
-    unload(m_walkTex);
-    unload(m_walkFlipped);
-    unload(m_jumpTex);
-    unload(m_jumpFlipped);
+    if (m_idleTex.id > 0) { UnloadTexture(m_idleTex); m_idleTex = {}; }
+    if (m_walkTex.id > 0) { UnloadTexture(m_walkTex); m_walkTex = {}; }
+    if (m_jumpTex.id > 0) { UnloadTexture(m_jumpTex); m_jumpTex = {}; }
 }
 
 Player::~Player() {
@@ -110,6 +103,10 @@ void Player::startSwing(float customDuration) {
     m_swingTimer = 0.0f;
     m_swingDuration = customDuration;
     m_swingJustCompleted = false;
+}
+
+void Player::clearInventory() {
+    m_inventory = Inventory{};
 }
 
 bool Player::wasSwingJustCompleted() {
@@ -208,7 +205,7 @@ void Player::render() const {
     switch (m_animState) {
         case AnimState::Walk:
             if (m_walkTex.id > 0) {
-                tex = m_facingLeft ? const_cast<Texture2D*>(&m_walkFlipped) : const_cast<Texture2D*>(&m_walkTex);
+                tex = const_cast<Texture2D*>(&m_walkTex);
                 const auto& f = m_walkFrames[m_currentFrame];
                 src = {static_cast<float>(f.x), static_cast<float>(f.y),
                        static_cast<float>(f.w), static_cast<float>(f.h)};
@@ -216,7 +213,7 @@ void Player::render() const {
             break;
         case AnimState::Jump:
             if (m_jumpTex.id > 0) {
-                tex = m_facingLeft ? const_cast<Texture2D*>(&m_jumpTex) : const_cast<Texture2D*>(&m_jumpFlipped);
+                tex = const_cast<Texture2D*>(&m_jumpTex);
                 const auto& f = m_jumpFrames[m_currentFrame];
                 src = {static_cast<float>(f.x), static_cast<float>(f.y),
                        static_cast<float>(f.w), static_cast<float>(f.h)};
@@ -224,7 +221,7 @@ void Player::render() const {
             break;
         case AnimState::Idle:
             if (m_idleTex.id > 0) {
-                tex = m_facingLeft ? const_cast<Texture2D*>(&m_idleFlipped) : const_cast<Texture2D*>(&m_idleTex);
+                tex = const_cast<Texture2D*>(&m_idleTex);
                 src = {0, 0, static_cast<float>(m_idleTex.width),
                        static_cast<float>(m_idleTex.height)};
             }
@@ -233,6 +230,9 @@ void Player::render() const {
 
     if (tex && tex->id > 0) {
         Rectangle dst = {m_position.x, m_position.y, m_width, m_height};
+        if (m_facingLeft) {
+            src.width = -src.width;
+        }
         DrawTexturePro(*tex, src, dst, {0, 0}, 0.0f, WHITE);
     } else {
         DrawRectangleRec(getBounds(), BLUE);
@@ -296,6 +296,7 @@ void Player::jump() {
     if (!m_onGround) return;
     m_velocity.y = constants::JUMP_SPEED;
     m_onGround = false;
+    SoundManager::instance().play(SoundManager::Jump);
 }
 
 Inventory& Player::getInventory() noexcept {

@@ -44,6 +44,7 @@ private:
     void refreshSlots();
 
     Vector2 m_lastMousePos{-100, -100};
+    int m_confirmDeleteSlot = -1;
 
     static const char* worldSizeText(int index);
 };

@@ -1,32 +1,44 @@
 #include "Inventory.hpp"
-#include "world/TileRegistry.hpp"
+#include "ItemDefinition.hpp"
 
 Inventory::Inventory() {
-    m_slots[0] = {TileId::Pickaxe, 1};
-    m_slots[1] = {TileId::Axe, 1};
-    m_slots[2] = {TileId::Sword, 1};
-    for (int i = 3; i < constants::INVENTORY_SLOTS; ++i) {
-        m_slots[i] = {TileId::Air, 0};
+    clear();
+}
+
+void Inventory::clear() {
+    for (auto& slot : m_slots) {
+        slot = {TileId::Air, 0};
     }
 }
 
 bool Inventory::addItem(TileId tileId, int count) {
-    if (tileId == TileId::Air) return false;
+    if (tileId == TileId::Air || count <= 0) return false;
+
+    int maxStack = ItemDatabase::instance().getMaxStack(tileId);
+    if (maxStack <= 0) return false;
+
+    int remaining = count;
 
     for (auto& slot : m_slots) {
-        if (slot.tileId == tileId) {
-            slot.count += count;
-            return true;
+        if (slot.tileId == tileId && slot.count < maxStack) {
+            int space = maxStack - slot.count;
+            int add = (remaining < space) ? remaining : space;
+            slot.count += add;
+            remaining -= add;
+            if (remaining <= 0) return true;
         }
     }
 
     for (auto& slot : m_slots) {
         if (slot.tileId == TileId::Air) {
+            int add = (remaining < maxStack) ? remaining : maxStack;
             slot.tileId = tileId;
-            slot.count = count;
-            return true;
+            slot.count = add;
+            remaining -= add;
+            if (remaining <= 0) return true;
         }
     }
+
     return false;
 }
 

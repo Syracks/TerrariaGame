@@ -1,30 +1,80 @@
 #include "InventoryScreen.hpp"
 #include "entities/Player.hpp"
 #include "items/Inventory.hpp"
+#include "items/ItemDefinition.hpp"
+#include "world/World.hpp"
 #include "world/TileRegistry.hpp"
+#include "world/Tile.hpp"
 #include "core/TextureManager.hpp"
 #include "core/SoundManager.hpp"
 #include "core/Constants.hpp"
-#include "crafting/Recipe.hpp"
+#include "core/Math.hpp"
 
 #include <string>
+#include <algorithm>
+#include <cmath>
 
 namespace {
     constexpr int SLOT_SIZE = 50;
     constexpr int SLOT_MARGIN = 4;
-    constexpr int GRID_COLS = 5;
+    constexpr int GRID_COLS = 9;
     constexpr int GRID_Y = 80;
     constexpr int PANEL_X = 15;
     constexpr int PANEL_Y = 320;
     constexpr int PANEL_W = 380;
     constexpr int PANEL_H = 350;
     constexpr int ROW_H = 40;
-    constexpr int VISIBLE_ROWS = 8;
+    constexpr int VISIBLE_ROWS = 7;
 
     constexpr int MENU_BTN_W = 200;
     constexpr int MENU_BTN_H = 40;
     constexpr int MENU_BTN_X = constants::SCREEN_WIDTH - MENU_BTN_W - 15;
     constexpr int MENU_BTN_Y = constants::SCREEN_HEIGHT - MENU_BTN_H - 15;
+
+    constexpr float STATION_RANGE = 3.0f;
+
+    const char* stationLabel(CraftingStation s) {
+        switch (s) {
+            case CraftingStation::None:      return "Hand";
+            case CraftingStation::Workbench: return "Workbench";
+            case CraftingStation::Furnace:   return "Furnace";
+            case CraftingStation::Anvil:     return "Anvil";
+        }
+        return "";
+    }
+}
+
+std::set<CraftingStation> InventoryScreen::detectStations(const Player& player, const World& world) const {
+    std::set<CraftingStation> stations;
+    stations.insert(CraftingStation::None);
+
+    float px = player.getPosition().x + player.getBounds().width / 2.0f;
+    float py = player.getPosition().y + player.getBounds().height / 2.0f;
+
+    int tileX = math::worldToTileX(px);
+    int tileY = math::worldToTileY(py);
+
+    int radius = static_cast<int>(STATION_RANGE);
+    for (int dy = -radius; dy <= radius; ++dy) {
+        for (int dx = -radius; dx <= radius; ++dx) {
+            int tx = tileX + dx;
+            int ty = tileY + dy;
+            if (!world.isInBounds(tx, ty)) continue;
+
+            TileId id = world.getTile(tx, ty);
+            float dist = std::sqrt(static_cast<float>(dx * dx + dy * dy));
+            if (dist > STATION_RANGE) continue;
+
+            switch (id) {
+                case TileId::Workbench:  stations.insert(CraftingStation::Workbench); break;
+                case TileId::Furnace:    stations.insert(CraftingStation::Furnace);   break;
+                case TileId::Anvil:      stations.insert(CraftingStation::Anvil);     break;
+                default: break;
+            }
+        }
+    }
+
+    return stations;
 }
 
 Rectangle InventoryScreen::getSlotRect(int index) const {
@@ -48,18 +98,24 @@ int InventoryScreen::getSlotAt(Vector2 mouse) const {
     return -1;
 }
 
-InventoryScreen::Action InventoryScreen::update(Player& player) {
+InventoryScreen::Action InventoryScreen::update(Player& player, const World& world) {
     auto& inventory = player.getInventory();
     auto& slots = inventory.getSlots();
     Vector2 mouse = GetMousePosition();
 
     m_hoveredSlot = getSlotAt(mouse);
 
+    auto stations = detectStations(player, world);
+    std::vector<const Recipe*> allRecipes;
+    for (auto s : stations) {
+        auto r = RecipeDatabase::getAvailable(slots.begin(), slots.end(), s);
+        allRecipes.insert(allRecipes.end(), r.begin(), r.end());
+    }
+
     int wheel = GetMouseWheelMove();
     if (wheel != 0) {
         m_scrollOffset -= static_cast<int>(wheel);
-        const auto& recipes = RecipeDatabase::getAvailable(slots.begin(), slots.end());
-        int maxOffset = static_cast<int>(recipes.size()) - VISIBLE_ROWS;
+        int maxOffset = static_cast<int>(allRecipes.size()) - VISIBLE_ROWS;
         if (maxOffset < 0) maxOffset = 0;
         if (m_scrollOffset < 0) m_scrollOffset = 0;
         if (m_scrollOffset > maxOffset) m_scrollOffset = maxOffset;
@@ -92,8 +148,11 @@ InventoryScreen::Action InventoryScreen::update(Player& player) {
                     slots[slotIdx] = m_draggedStack;
                     m_draggedStack = {TileId::Air, 0};
                 } else if (slots[slotIdx].tileId == m_draggedStack.tileId) {
-                    slots[slotIdx].count += m_draggedStack.count;
-                    m_draggedStack = {TileId::Air, 0};
+                    int transfer = std::min(m_draggedStack.count,
+                        ItemDatabase::instance().getMaxStack(slots[slotIdx].tileId) - slots[slotIdx].count);
+                    slots[slotIdx].count += transfer;
+                    m_draggedStack.count -= transfer;
+                    if (m_draggedStack.count <= 0) m_draggedStack = {TileId::Air, 0};
                 } else {
                     ItemStack temp = slots[slotIdx];
                     slots[slotIdx] = m_draggedStack;
@@ -103,8 +162,7 @@ InventoryScreen::Action InventoryScreen::update(Player& player) {
             return Action::None;
         }
 
-        const auto& recipes = RecipeDatabase::getAvailable(slots.begin(), slots.end());
-        for (size_t i = 0; i < recipes.size(); ++i) {
+        for (size_t i = 0; i < allRecipes.size(); ++i) {
             int listY = PANEL_Y + 20 + static_cast<int>(i - m_scrollOffset) * ROW_H;
             if (listY < PANEL_Y + 20) continue;
             if (listY + ROW_H > PANEL_Y + PANEL_H) break;
@@ -115,7 +173,7 @@ InventoryScreen::Action InventoryScreen::update(Player& player) {
                 static_cast<float>(ROW_H)
             };
             if (CheckCollisionPointRec(mouse, rowRect)) {
-                const Recipe* recipe = recipes[i];
+                const Recipe* recipe = allRecipes[i];
                 for (const auto& ing : recipe->ingredients) {
                     inventory.removeItem(ing.item, ing.count);
                 }
@@ -129,13 +187,14 @@ InventoryScreen::Action InventoryScreen::update(Player& player) {
     return Action::None;
 }
 
-void InventoryScreen::render(const Player& player) const {
+void InventoryScreen::render(const Player& player, const World& world) const {
     DrawRectangle(0, 0, constants::SCREEN_WIDTH, constants::SCREEN_HEIGHT,
                   Color{0, 0, 0, 140});
 
     const auto& inventory = player.getInventory();
     const auto& slots = inventory.getSlots();
     auto& texMgr = TextureManager::instance();
+    auto& itemDb = ItemDatabase::instance();
 
     int gridW = GRID_COLS * SLOT_SIZE + (GRID_COLS - 1) * SLOT_MARGIN;
     int gridX = (constants::SCREEN_WIDTH - gridW) / 2;
@@ -167,24 +226,42 @@ void InventoryScreen::render(const Player& player) const {
             } else {
                 DrawRectangle(iconX, iconY, iconSize, iconSize, def.color);
             }
-            std::string countText = std::to_string(slots[i].count);
-            DrawText(countText.c_str(), x + 5, y + SLOT_SIZE - 18, 12, WHITE);
+            int maxStack = itemDb.getMaxStack(slots[i].tileId);
+            std::string countText = std::to_string(slots[i].count) + "/" + std::to_string(maxStack);
+            DrawText(countText.c_str(), x + 5, y + SLOT_SIZE - 18, 10, Color{200, 200, 200, 200});
         }
     }
 
     DrawRectangle(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, Color{20, 20, 30, 220});
     DrawRectangleLines(PANEL_X, PANEL_Y, PANEL_W, PANEL_H, Color{80, 80, 100, 255});
-    DrawText("Crafting", PANEL_X + 10, PANEL_Y + 5, 16, WHITE);
 
-    const auto& recipes = RecipeDatabase::getAvailable(slots.begin(), slots.end());
+    auto stations = detectStations(player, world);
+    std::vector<const Recipe*> allRecipes;
+    for (auto s : stations) {
+        auto r = RecipeDatabase::getAvailable(slots.begin(), slots.end(), s);
+        allRecipes.insert(allRecipes.end(), r.begin(), r.end());
+    }
 
-    int textY = PANEL_Y + 25;
+    std::string title = "Crafting";
+    if (stations.size() > 1) {
+        title += " [";
+        bool first = true;
+        for (auto s : stations) {
+            if (s == CraftingStation::None) continue;
+            if (!first) title += " + ";
+            first = false;
+            title += stationLabel(s);
+        }
+        title += "]";
+    }
+    DrawText(title.c_str(), PANEL_X + 10, PANEL_Y + 5, 14, WHITE);
+
     int startIdx = m_scrollOffset;
     int endIdx = startIdx + VISIBLE_ROWS;
-    if (endIdx > static_cast<int>(recipes.size())) endIdx = recipes.size();
+    if (endIdx > static_cast<int>(allRecipes.size())) endIdx = allRecipes.size();
 
     for (int i = startIdx; i < endIdx; ++i) {
-        const Recipe* r = recipes[i];
+        const Recipe* r = allRecipes[i];
         int ry = PANEL_Y + 20 + (i - startIdx) * ROW_H;
         DrawRectangle(PANEL_X + 5, ry, PANEL_W - 10, ROW_H - 2, Color{30, 30, 40, 200});
 
@@ -202,23 +279,28 @@ void InventoryScreen::render(const Player& player) const {
         std::string resultLabel = def.name + " x" + std::to_string(r->resultCount);
         DrawText(resultLabel.c_str(), PANEL_X + 42, ry + 4, 14, WHITE);
 
+        std::string stationInfo;
+        if (r->station != CraftingStation::None) {
+            stationInfo = std::string("[") + stationLabel(r->station) + "] ";
+        }
+
         std::string ingredients;
         for (size_t j = 0; j < r->ingredients.size(); ++j) {
             if (j > 0) ingredients += ", ";
             ingredients += TileRegistry::instance().get(r->ingredients[j].item).name;
             ingredients += " x" + std::to_string(r->ingredients[j].count);
         }
-        DrawText(ingredients.c_str(), PANEL_X + 42, ry + 22, 11, Color{160, 160, 180, 255});
+        DrawText((stationInfo + ingredients).c_str(), PANEL_X + 42, ry + 22, 11, Color{160, 160, 180, 255});
     }
 
-    if (recipes.empty()) {
+    if (allRecipes.empty()) {
         DrawText("No craftable items", PANEL_X + 10, PANEL_Y + 35, 14, Color{120, 120, 140, 255});
     }
 
     if (m_scrollOffset > 0) {
         DrawText("^", PANEL_X + PANEL_W / 2 - 5, PANEL_Y + PANEL_H - 18, 14, Color{160, 160, 180, 255});
     }
-    if (m_scrollOffset + VISIBLE_ROWS < static_cast<int>(recipes.size())) {
+    if (m_scrollOffset + VISIBLE_ROWS < static_cast<int>(allRecipes.size())) {
         DrawText("v", PANEL_X + PANEL_W / 2 - 5, PANEL_Y + PANEL_H - 18, 14, Color{160, 160, 180, 255});
     }
 

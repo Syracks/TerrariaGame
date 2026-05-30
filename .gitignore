@@ -21,3 +21,7 @@ Thumbs.db
 
 cmake-build-*/
 CMakeUserPresets.json
+
+saves/
+*.sav
+*.save

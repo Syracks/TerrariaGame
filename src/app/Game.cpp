@@ -4,106 +4,36 @@
 #include "core/Math.hpp"
 #include "core/TextureManager.hpp"
 #include "core/SoundManager.hpp"
+#include "items/ItemDefinition.hpp"
 #include "items/Tool.hpp"
 #include "systems/PhysicsSystem.hpp"
 #include "systems/CollisionSystem.hpp"
 #include "systems/LiquidSystem.hpp"
 #include "systems/MiningSystem.hpp"
-#include "systems/RenderSystem.hpp"
 #include "ui/HUD.hpp"
 #include "ui/Minimap.hpp"
 #include "save/SaveManager.hpp"
 #include "world/TileRegistry.hpp"
+#include "world/WorldGenerator.hpp"
+#include "app/MobSpawner.hpp"
+#include "systems/CombatSystem.hpp"
+#include "systems/InteractionSystem.hpp"
+#include "systems/DeathSystem.hpp"
 
 #include <raylib.h>
-#include <cstdlib>
 #include <ctime>
+#include <fstream>
 #include <cmath>
 #include <iostream>
 #include <algorithm>
 
 namespace {
-    constexpr float DAY_LENGTH = 300.0f;
-    constexpr float NIGHT_LENGTH = 120.0f;
-    constexpr float CYCLE_LENGTH = DAY_LENGTH + NIGHT_LENGTH;
-    constexpr float NIGHT_START = DAY_LENGTH / CYCLE_LENGTH;
-    constexpr int ZOMBIE_SPAWN_INTERVAL = 8;
-
-    bool isSolidForSpawn(const World& world, int x, int y) {
-        if (!world.isInBounds(x, y)) return false;
-
-        TileId id = world.getTile(x, y);
-        if (id == TileId::Air) return false;
-
-        return TileRegistry::instance().get(id).solid;
-    }
-
-    bool hasHeadRoom(const World& world, int x, int groundY) {
-        return !isSolidForSpawn(world, x, groundY - 1) &&
-               !isSolidForSpawn(world, x, groundY - 2) &&
-               !isSolidForSpawn(world, x, groundY - 3) &&
-               !isSolidForSpawn(world, x, groundY - 4);
-    }
-
-    bool hasRealGroundBelow(const World& world, int x, int y) {
-        int solidCount = 0;
-        int maxY = std::min(world.getWorldHeight(), y + 30);
-
-        for (int ty = y; ty < maxY; ++ty) {
-            if (isSolidForSpawn(world, x, ty)) {
-                solidCount++;
-            }
-        }
-
-        return solidCount >= 20;
-    }
-
-    Vector2 findSafeSpawnPosition(const World& world) {
-        int centerX = world.getWorldWidth() / 2;
-
-        for (int radius = 0; radius <= 100; ++radius) {
-            int candidates[2] = {
-                centerX - radius,
-                centerX + radius
-            };
-
-            for (int i = 0; i < 2; ++i) {
-                int x = candidates[i];
-
-                if (x < 2 || x >= world.getWorldWidth() - 2) continue;
-
-                int startY = world.getWorldHeight() / 5;
-
-                for (int y = startY; y < world.getWorldHeight() - 5; ++y) {
-                    bool validGround =
-                        isSolidForSpawn(world, x, y) &&
-                        isSolidForSpawn(world, x, y + 1);
-
-                    if (!validGround) continue;
-                    if (!hasHeadRoom(world, x, y)) continue;
-                    if (!hasRealGroundBelow(world, x, y)) continue;
-
-                    return {
-                        static_cast<float>(x * constants::TILE_SIZE),
-                        static_cast<float>((y - 3) * constants::TILE_SIZE)
-                    };
-                }
-            }
-        }
-
-        return {
-            static_cast<float>(centerX * constants::TILE_SIZE),
-            0.0f
-        };
-    }
+    constexpr float AUTOSAVE_INTERVAL = 60.0f;
 }
 
 Game::Game()
-    : m_state(GameState::MainMenu)
-    , m_world(std::make_unique<World>())
-    , m_player(std::make_unique<Player>())
-    , m_minimap(std::make_unique<Minimap>())
-    , m_seed(static_cast<unsigned int>(std::time(nullptr))) {
+    : m_state(GameState::MainMenu) {
+    ItemDatabase::instance();
 }
 
 Game::~Game() = default;
@@ -116,9 +46,7 @@ void Game::init() {
     InitAudioDevice();
     SoundManager::instance().loadAll();
 
-    Image img = LoadImage("assets/textures/backgrounds/forest.png");
-    m_background = LoadTextureFromImage(img);
-    UnloadImage(img);
+    m_renderer.init();
 
     TextureManager::instance().loadAll();
 
@@ -139,96 +67,16 @@ void Game::run() {
 
         BeginDrawing();
 
-        if (m_state == GameState::MainMenu || m_state == GameState::Settings) {
-            ClearBackground(Color{20, 20, 30, 255});
-        } else {
-            float t = m_dayTime / CYCLE_LENGTH;
-            Color sky;
-            if (t < NIGHT_START) {
-                float p = t / NIGHT_START;
-                sky = {
-                    static_cast<unsigned char>(135 + p * 50),
-                    static_cast<unsigned char>(206 + p * 30),
-                    static_cast<unsigned char>(235 + p * 10),
-                    255
-                };
-            } else {
-                float p = (t - NIGHT_START) / (1.0f - NIGHT_START);
-                sky = {
-                    static_cast<unsigned char>(185 - p * 130),
-                    static_cast<unsigned char>(236 - p * 176),
-                    static_cast<unsigned char>(245 - p * 185),
-                    255
-                };
-            }
-            ClearBackground(sky);
-        }
-
         if (m_state == GameState::MainMenu) {
-            m_menu.render();
+            m_renderer.renderMainMenu(m_menu);
         } else if (m_state == GameState::Settings) {
-            m_settingsMenu.render();
-        } else if (m_state == GameState::Playing || m_state == GameState::Inventory) {
-            float scaleX = static_cast<float>(constants::SCREEN_WIDTH) / m_background.width;
-            float scaleY = static_cast<float>(constants::SCREEN_HEIGHT) / m_background.height;
-            float scale = (scaleX > scaleY) ? scaleX : scaleY;
-            float bgW = m_background.width * scale;
-            float bgH = m_background.height * scale;
-            float bgX = (constants::SCREEN_WIDTH - bgW) / 2.0f;
-            float bgY = (constants::SCREEN_HEIGHT - bgH) / 2.0f;
-            float nightAlpha = 0.0f;
-            float t = m_dayTime / CYCLE_LENGTH;
-            if (t > NIGHT_START) {
-                float p = (t - NIGHT_START) / (1.0f - NIGHT_START);
-                nightAlpha = p;
-            }
-            Color bgTint = {
-                static_cast<unsigned char>(255 * (1.0f - nightAlpha * 0.3f)),
-                static_cast<unsigned char>(255 * (1.0f - nightAlpha * 0.5f)),
-                static_cast<unsigned char>(255 * (1.0f - nightAlpha * 0.6f)),
-                255
-            };
-            DrawTextureEx(m_background, {bgX, bgY}, 0.0f, scale, bgTint);
-            Camera2D cam = m_camera.getCamera();
-            cam.target.x = std::round(cam.target.x);
-            cam.target.y = std::round(cam.target.y);
-            BeginMode2D(cam);
-            RenderSystem::renderWorld(*m_world, m_camera.getCamera(), nightAlpha);
-            for (auto& mob : m_mobs) {
-                mob->render();
-            }
-            m_particles.render();
-            m_player->render();
-
-            Vector2 playerCenter = {
-                m_player->getPosition().x + m_player->getBounds().width / 2.0f,
-                m_player->getPosition().y + m_player->getBounds().height / 2.0f
-            };
-
-            RenderSystem::renderLightingOverlay(*m_world,
-                                                cam,
-                                                nightAlpha,
-                                                playerCenter);
-
-            EndMode2D();
-
-            HUD::render(*m_player);
-
-            m_minimap->render(*m_world, playerCenter, m_minimapVisible);
-
-            if (m_state == GameState::Inventory) {
-                m_inventoryScreen.render(*m_player);
-            }
-
-            if (m_deathTimer > 0.0f) {
-                float alpha = std::min(m_deathTimer / 2.0f * 200.0f, 180.0f);
-                DrawRectangle(0, 0, constants::SCREEN_WIDTH, constants::SCREEN_HEIGHT,
-                              Color{180, 0, 0, static_cast<unsigned char>(alpha)});
-                const char* deathText = "YOU DIED";
-                int textSize = 60;
-                int textW = MeasureText(deathText, textSize);
-                DrawText(deathText, (constants::SCREEN_WIDTH - textW) / 2,
-                         constants::SCREEN_HEIGHT / 2 - 30, textSize, WHITE);
+            m_renderer.renderSettingsMenu(m_settingsMenu);
+        } else if (m_state == GameState::Playing || m_state == GameState::Inventory || m_state == GameState::Chest) {
+            m_renderer.renderGame(m_session, m_camera.getCamera(),
+                                  m_state == GameState::Inventory, m_inventoryScreen,
+                                  m_session.getWorld());
+            if (m_state == GameState::Chest && m_chestScreen.isOpen()) {
+                m_chestScreen.render(m_session.getPlayer(), m_session.getWorld());
             }
         }
 
@@ -277,12 +125,15 @@ void Game::handleInput() {
             m_state = GameState::Inventory;
         } else if (m_state == GameState::Inventory) {
             m_state = GameState::Playing;
+        } else if (m_state == GameState::Chest) {
+            m_chestScreen.close();
+            m_state = GameState::Playing;
         }
         return;
     }
 
     if (m_state == GameState::Inventory) {
-        auto action = m_inventoryScreen.update(*m_player);
+        auto action = m_inventoryScreen.update(m_session.getPlayer(), m_session.getWorld());
         if (action == InventoryScreen::Action::ReturnToMenu) {
             cleanupWorld();
             m_state = GameState::MainMenu;
@@ -291,414 +142,195 @@ void Game::handleInput() {
         return;
     }
 
+    if (m_state == GameState::Chest) {
+        m_chestScreen.update(m_session.getPlayer(), m_session.getWorld());
+        return;
+    }
+
     if (m_state != GameState::Playing)
         return;
 
     if (input::isMinimapToggled()) {
-        m_minimapVisible = !m_minimapVisible;
+        m_session.toggleMinimap();
     }
 
     int slot = input::getHotbarSelection();
-    if (slot >= 0) m_player->getInventory().selectSlot(slot);
+    if (slot >= 0) m_session.getPlayer().getInventory().selectSlot(slot);
 
     int wheel = GetMouseWheelMove();
     if (wheel != 0) {
-        int current = m_player->getInventory().getSelectedIndex();
+        int current = m_session.getPlayer().getInventory().getSelectedIndex();
         current -= wheel;
         if (current < 0) current += constants::HOTBAR_SLOTS;
         if (current >= constants::HOTBAR_SLOTS) current %= constants::HOTBAR_SLOTS;
-        m_player->getInventory().selectSlot(current);
+        m_session.getPlayer().getInventory().selectSlot(current);
     }
 
     if (input::isSavePressed()) saveGame();
-}
-
-void Game::update(float dt) {
-    m_dayTime += dt;
-    if (m_dayTime >= CYCLE_LENGTH) m_dayTime -= CYCLE_LENGTH;
-
-    if (m_player->getHealth() > 0) {
-        bool inWater = LiquidSystem::isInWater(*m_world, m_player->getPosition().x, m_player->getPosition().y,
-                                                m_player->getBounds().width, m_player->getBounds().height);
-
-        m_playerController.update(*m_player);
-        if (input::isJumpPressed()) {
-            if (m_player->isOnGround()) {
-                SoundManager::instance().play(SoundManager::Jump);
-            } else if (inWater) {
-                Vector2 vel = m_player->getVelocity();
-                vel.y = -200.0f;
-                m_player->setVelocity(vel);
-            }
-        }
-        m_player->update(dt);
-        CollisionSystem::resolveCollision(*m_player, *m_world, dt);
-
-        if (inWater) {
-            Vector2 vel = m_player->getVelocity();
-            vel.x *= 0.85f;
-            vel.y *= 0.92f;
-            if (std::abs(vel.y) > 60.0f) vel.y *= 0.96f;
-            m_player->setVelocity(vel);
-        }
-    }
-
-    LiquidSystem::update(*m_world, dt);
-
-    if (LiquidSystem::isInLava(*m_world, m_player->getPosition().x, m_player->getPosition().y,
-                                m_player->getBounds().width, m_player->getBounds().height)) {
-        m_player->takeDamage(10);
-    }
-
-    Vector2 playerCenter = {
-        m_player->getPosition().x + m_player->getBounds().width / 2,
-        m_player->getPosition().y + m_player->getBounds().height / 2
-    };
-
-    for (auto& mob : m_mobs) {
-        mob->setPlayerPos(playerCenter);
-        mob->update(dt);
-        PhysicsSystem::update(*mob, *m_world, dt);
-    }
-
-    m_camera.update(*m_player);
-
-    if (m_player->getHealth() <= 0 && m_deathTimer <= 2.0f) {
-        m_player->setVelocity({0, 0});
-    }
-
-    if (m_player->getHealth() <= 0) {
-        if (m_deathTimer <= 0.0f) {
-            m_deathTimer = 2.0f;
-            SoundManager::instance().play(SoundManager::PlayerDeath);
-            float px = m_player->getPosition().x + m_player->getBounds().width / 2;
-            float py = m_player->getPosition().y + m_player->getBounds().height / 2;
-            for (int i = 0; i < 40; ++i) {
-                float dx = (std::rand() % 600 - 300) * 1.2f;
-                float dy = (std::rand() % 600 - 300) * 1.2f;
-                Color c = {(unsigned char)(150 + std::rand() % 105),
-                           (unsigned char)(std::rand() % 100),
-                           (unsigned char)(std::rand() % 60), 255};
-                m_particles.emit({px, py}, {dx, dy}, c, 0.8f + (std::rand() % 5) * 0.1f, 5, 2);
-            }
-        }
-        m_deathTimer -= dt;
-        if (m_deathTimer <= 0.0f) {
-            Vector2 spawnPos = findSafeSpawnPosition(*m_world);
-            m_player->setPosition(spawnPos);
-            m_player->setVelocity({0, 0});
-            m_player->heal(m_player->getMaxHealth());
-            m_mobs.clear();
-            spawnSlimes();
-            m_deathTimer = 0.0f;
-        }
-        return;
-    }
 
     if (input::isMinePressed()) {
-        auto* sel = m_player->getInventory().getSelectedSlot();
-        TileId held = (sel && sel->count > 0) ? sel->tileId : TileId::Air;
-
-        if (held == TileId::Sword) {
-            m_player->startSwing();
-            SoundManager::instance().play(SoundManager::SwordSwing);
-        } else if (isTool(held)) {
-            Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), m_camera.getCamera());
-            int tx = math::worldToTileX(worldPos.x);
-            int ty = math::worldToTileY(worldPos.y);
-            if (m_world->isInBounds(tx, ty)) {
-                TileId target = m_world->getTile(tx, ty);
-                if (target != TileId::Air) {
-                    float mineTime = MiningSystem::getMiningTime(target, held);
-                    if (mineTime > 0.0f) {
-                        m_player->setMiningTarget(tx, ty);
-                        m_player->startSwing(mineTime);
-                    }
-                } else if (held == TileId::Pickaxe && m_world->getWall(tx, ty) != TileId::Air) {
-                    m_player->setMiningTarget(tx, ty);
-                    m_player->startSwing(0.15f);
-                }
-            }
-        }
-    }
-
-    if (m_player->isSwinging()) {
-        auto* sel = m_player->getInventory().getSelectedSlot();
-        TileId held = (sel && sel->count > 0) ? sel->tileId : TileId::Air;
-
-        if (held == TileId::Sword) {
-            Rectangle hitbox = m_player->getSwingHitbox();
-            if (hitbox.width > 0 && hitbox.height > 0) {
-                for (auto& mob : m_mobs) {
-                    if (CheckCollisionRecs(hitbox, mob->getBounds())) {
-                        mob->takeDamage(20);
-                        SoundManager::instance().play(SoundManager::SwordHit);
-                        for (int i = 0; i < 5; ++i) {
-                            float px = mob->getBounds().x + mob->getBounds().width / 2;
-                            float py = mob->getBounds().y + mob->getBounds().height / 2;
-                            m_particles.emit({px, py}, {0, -100}, {255, 50, 50, 255}, 0.4f, 3, 1);
-                        }
-                        Vector2 c{hitbox.x + hitbox.width/2, hitbox.y + hitbox.height/2};
-                        Vector2 pc{m_player->getBounds().x + m_player->getBounds().width/2,
-                                   m_player->getBounds().y + m_player->getBounds().height/2};
-                        Vector2 dir{c.x - pc.x, c.y - pc.y};
-                        float len = std::sqrt(dir.x*dir.x + dir.y*dir.y);
-                        if (len > 0.001f) { dir.x /= len; dir.y /= len; }
-                        mob->knockback(dir);
-                    }
-                }
-            }
-        }
-    }
-
-    for (auto& mob : m_mobs) {
-        if (m_player->getHealth() > 0 &&
-            CheckCollisionRecs(m_player->getBounds(), mob->getBounds())) {
-            m_player->takeDamage(mob->getContactDamage());
-        }
-    }
-
-    for (auto it = m_mobs.begin(); it != m_mobs.end(); ) {
-        if ((*it)->getHealth() <= 0) {
-            auto& mob = *it;
-            SoundManager::instance().play(SoundManager::MobDeath);
-            for (int i = 0; i < 8; ++i) {
-                float px = mob->getBounds().x + mob->getBounds().width / 2;
-                float py = mob->getBounds().y + mob->getBounds().height / 2;
-                m_particles.emit({px, py}, {0, -200}, {150, 150, 150, 255}, 0.6f, 4, 1);
-            }
-            mob->unload();
-            it = m_mobs.erase(it);
-        } else {
-            ++it;
-        }
-    }
-
-    m_particles.update(dt);
-
-    float t = m_dayTime / CYCLE_LENGTH;
-    if (t > NIGHT_START && m_mobs.size() < 20) {
-        static int zombieSpawnTimer = 0;
-        zombieSpawnTimer++;
-        if (zombieSpawnTimer >= ZOMBIE_SPAWN_INTERVAL * constants::TARGET_FPS) {
-            zombieSpawnTimer = 0;
-            if (std::rand() % 3 == 0) spawnZombies();
-        }
-    }
-
-    if (m_player->wasSwingJustCompleted()) {
-        auto* sel = m_player->getInventory().getSelectedSlot();
-        TileId held = (sel && sel->count > 0) ? sel->tileId : TileId::Air;
-        if ((held == TileId::Pickaxe || held == TileId::Axe) &&
-            m_player->getMiningTargetX() >= 0) {
-            int tx = m_player->getMiningTargetX();
-            int ty = m_player->getMiningTargetY();
-            TileId mined = m_world->getTile(tx, ty);
-            if (mined != TileId::Air) {
-                MiningSystem::tryMineTile(*m_world, *m_player, tx, ty);
-                if (m_world->getTile(tx, ty) == TileId::Air && mined != TileId::Air) {
-                    SoundManager::instance().play(
-                        held == TileId::Pickaxe ? SoundManager::PickaxeMine : SoundManager::AxeMine);
-                    float cx = math::tileToWorldX(tx) + constants::TILE_SIZE / 2.0f;
-                    float cy = math::tileToWorldY(ty) + constants::TILE_SIZE / 2.0f;
-                    auto& reg = TileRegistry::instance();
-                    Color c = reg.get(mined).color;
-                    for (int i = 0; i < 6; ++i) {
-                        m_particles.emit({cx, cy}, {0, -150}, c, 0.5f, 4, 1);
-                    }
-                    m_minimap->markDirty();
-                }
-            } else {
-                TileId wall = m_world->getWall(tx, ty);
-                if (wall != TileId::Air && held == TileId::Pickaxe) {
-                    m_world->setWall(tx, ty, TileId::Air);
-                    m_player->getInventory().addItem(wall, 1);
-                    SoundManager::instance().play(SoundManager::PickaxeMine);
-                    float cx = math::tileToWorldX(tx) + constants::TILE_SIZE / 2.0f;
-                    float cy = math::tileToWorldY(ty) + constants::TILE_SIZE / 2.0f;
-                    auto& reg = TileRegistry::instance();
-                    Color c = reg.get(wall).color;
-                    for (int i = 0; i < 4; ++i) {
-                        m_particles.emit({cx, cy}, {0, -120}, c, 0.4f, 3, 1);
-                    }
-                    m_minimap->markDirty();
-                }
-            }
-            m_player->clearMiningTarget();
-        }
+        InteractionSystem::handleMinePress(m_session.getPlayer(), m_session.getWorld(),
+                                            m_camera.getCamera());
     }
 
     if (input::isPlacePressed()) {
-        auto* sel = m_player->getInventory().getSelectedSlot();
-        if (sel && sel->count > 0) {
-            if (sel->tileId == TileId::Torch) {
-                Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), m_camera.getCamera());
-                int tx = math::worldToTileX(worldPos.x);
-                int ty = math::worldToTileY(worldPos.y);
-                if (m_world->isInBounds(tx, ty) && m_world->getTile(tx, ty) == TileId::Air) {
-                    bool adjacent = false;
-                    static const int dx[] = {0, 0, -1, 1};
-                    static const int dy[] = {-1, 1, 0, 0};
-                    for (int i = 0; i < 4; ++i) {
-                        int nx = tx + dx[i];
-                        int ny = ty + dy[i];
-                        if (m_world->isInBounds(nx, ny)) {
-                            TileId nid = m_world->getTile(nx, ny);
-                            if (nid != TileId::Air && TileRegistry::instance().get(nid).solid) {
-                                adjacent = true;
-                                break;
-                            }
-                        }
+        auto& world = m_session.getWorld();
+        auto& player = m_session.getPlayer();
+        Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), m_camera.getCamera());
+        int tx = math::worldToTileX(worldPos.x);
+        int ty = math::worldToTileY(worldPos.y);
+        if (world.isInBounds(tx, ty) && world.getTile(tx, ty) == TileId::ChestBlock) {
+            float distX = std::abs(player.getPosition().x + player.getBounds().width / 2 -
+                                   (math::tileToWorldX(tx) + constants::TILE_SIZE / 2.0f));
+            float distY = std::abs(player.getPosition().y + player.getBounds().height / 2 -
+                                   (math::tileToWorldY(ty) + constants::TILE_SIZE / 2.0f));
+            if (distX <= 3.0f * constants::TILE_SIZE && distY <= 3.0f * constants::TILE_SIZE) {
+                m_chestScreen.open(tx, ty);
+                SoundManager::instance().play(SoundManager::BlockPlace);
+                m_state = GameState::Chest;
+                return;
+            }
+        }
+        InteractionSystem::handlePlacePress(m_session.getPlayer(), m_session.getWorld(),
+                                             m_camera.getCamera(), m_session.getMinimap());
+    }
+}
+
+void Game::update(float dt) {
+    auto& world = m_session.getWorld();
+    auto& player = m_session.getPlayer();
+    auto& mobs = m_session.getMobs();
+
+    if (dt > 0.033f) dt = 0.033f;
+
+    m_session.advanceDayTime(dt);
+
+    static int spawnGuard = 10;
+    if (spawnGuard > 0) {
+        Vector2 safe = DeathSystem::findSafeSpawnPosition(world);
+        player.setPosition(safe);
+        player.setVelocity({0, 0});
+        spawnGuard--;
+    }
+
+    if (player.getHealth() > 0) {
+        bool inWater = LiquidSystem::isInWater(world, player.getPosition().x, player.getPosition().y,
+                                                player.getBounds().width, player.getBounds().height);
+
+        if (!player.isOnGround() && input::isJumpPressed() && inWater) {
+            Vector2 vel = player.getVelocity();
+            vel.y = -200.0f;
+            player.setVelocity(vel);
+        }
+
+        m_playerController.update(player);
+        player.update(dt);
+        CollisionSystem::resolveCollision(player, world, dt);
+
+        if (inWater) {
+            Vector2 vel = player.getVelocity();
+            vel.x *= 0.85f;
+            vel.y *= 0.92f;
+            if (std::abs(vel.y) > 60.0f) vel.y *= 0.96f;
+            player.setVelocity(vel);
+        }
+    }
+
+    LiquidSystem::update(world, dt);
+
+    if (LiquidSystem::isInLava(world, player.getPosition().x, player.getPosition().y,
+                                player.getBounds().width, player.getBounds().height)) {
+        player.takeDamage(10);
+    }
+
+    Vector2 playerCenter = {
+        player.getPosition().x + player.getBounds().width / 2,
+        player.getPosition().y + player.getBounds().height / 2
+    };
+
+    for (auto& mob : mobs) {
+        mob->setPlayerPos(playerCenter);
+        mob->update(dt);
+        PhysicsSystem::update(*mob, world, dt);
+    }
+
+    m_camera.update(player);
+
+    if (m_session.getDeathTimer() > 0.0f) {
+        player.setVelocity({0, 0});
+    }
+
+    DeathSystem::updateDeath(player, world, m_session.getMobs(),
+                              m_session.getDeathTimerRef(), dt,
+                              m_session.getParticles(),
+                              m_session.getRNG());
+
+    if (player.getHealth() > 0) {
+        InteractionSystem::handleSwingCompletion(player, world,
+                                                  m_session.getParticles(),
+                                                  m_session.getMinimap());
+
+        CombatSystem::checkSwordHit(player, mobs, m_session.getParticles());
+        CombatSystem::checkMobContactDamage(mobs, player);
+
+        for (auto it = mobs.begin(); it != mobs.end(); ) {
+            if ((*it)->getHealth() <= 0) {
+                auto& mob = *it;
+                SoundManager::instance().play(SoundManager::MobDeath);
+                for (int i = 0; i < 8; ++i) {
+                    float px = mob->getBounds().x + mob->getBounds().width / 2;
+                    float py = mob->getBounds().y + mob->getBounds().height / 2;
+                    m_session.getParticles().emit({px, py}, {0, -200}, {150, 150, 150, 255}, 0.6f, 4, 1);
+                }
+
+                auto& rng = m_session.getRNG();
+                std::uniform_int_distribution<int> dist100(0, 99);
+                std::uniform_int_distribution<int> distCount(1, 3);
+                TileId dropItem = TileId::Air;
+                int dropCount = 0;
+                if (mob->getType() == MobType::Slime || mob->getType() == MobType::BlueSlime) {
+                    if (dist100(rng) < 70) {
+                        dropItem = TileId::Gel;
+                        dropCount = distCount(rng);
                     }
-                    if (adjacent) {
-                        m_world->setTile(tx, ty, TileId::Torch);
-                        m_player->getInventory().removeItem(TileId::Torch, 1);
-                        SoundManager::instance().play(SoundManager::TorchPlace);
-                        m_minimap->markDirty();
+                } else if (mob->getType() == MobType::Zombie) {
+                    if (dist100(rng) < 30) {
+                        dropItem = TileId::CopperOre;
+                        dropCount = 1;
                     }
                 }
-            } else if (isWallItem(sel->tileId)) {
-                Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), m_camera.getCamera());
-                int tx = math::worldToTileX(worldPos.x);
-                int ty = math::worldToTileY(worldPos.y);
-                if (m_world->isInBounds(tx, ty) && m_world->getTile(tx, ty) == TileId::Air) {
-                    if (m_world->getWall(tx, ty) == TileId::Air) {
-                        bool adjacent = false;
-                        static const int dx[] = {0, 0, -1, 1};
-                        static const int dy[] = {-1, 1, 0, 0};
-                        for (int i = 0; i < 4; ++i) {
-                            int nx = tx + dx[i];
-                            int ny = ty + dy[i];
-                            if (m_world->isInBounds(nx, ny)) {
-                                TileId nid = m_world->getTile(nx, ny);
-                                if (nid != TileId::Air && TileRegistry::instance().get(nid).solid) {
-                                    adjacent = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (adjacent) {
-                            m_world->setWall(tx, ty, sel->tileId);
-                            m_player->getInventory().removeItem(sel->tileId, 1);
-                            SoundManager::instance().play(SoundManager::BlockPlace);
-                            m_minimap->markDirty();
-                        }
-                    }
+                if (dropItem != TileId::Air) {
+                    player.getInventory().addItem(dropItem, dropCount);
                 }
+
+                m_totalKills++;
+                mob->unload();
+                it = mobs.erase(it);
             } else {
-                int oldCount = sel->count;
-                MiningSystem::tryPlace(*m_world, *m_player, m_camera.getCamera());
-                if (sel->count < oldCount) {
-                    SoundManager::instance().play(SoundManager::BlockPlace);
-                    m_minimap->markDirty();
-                }
+                ++it;
             }
         }
     }
-}
 
-void Game::render() {
-}
+    m_session.getParticles().update(dt);
 
-void Game::spawnSlimes() {
-    int count = 5 + std::rand() % 6;
-    int worldWidth = m_world->getWorldWidth();
-    int playerSpawnTx = worldWidth / 2;
-    for (int i = 0; i < count; ++i) {
-        int tx;
-        int facing;
-        int offset = 30 + std::rand() % 40;
-        if (i % 2 == 0) {
-            tx = playerSpawnTx - offset;
-            facing = 1;
-        } else {
-            tx = playerSpawnTx + offset;
-            facing = -1;
-        }
-        if (tx < 0 || tx >= worldWidth) continue;
+    MobSpawner::updateNightSpawning(world, mobs, player, m_session.getDayTime(), dt, m_session.getRNG());
 
-        bool found = false;
-        int surfaceY = 0;
-        for (int y = 0; y < m_world->getWorldHeight(); ++y) {
-            if (m_world->getTile(tx, y) != TileId::Air) {
-                surfaceY = y;
-                found = true;
-                break;
-            }
-        }
-        if (!found) continue;
-
-        int spawnY = surfaceY - 2;
-        if (spawnY < 0) spawnY = 0;
-        MobType mt = (std::rand() % 3 == 0) ? MobType::BlueSlime : MobType::Slime;
-        auto slime = std::make_unique<Mob>(mt, Vector2{
-            static_cast<float>(tx) * constants::TILE_SIZE,
-            static_cast<float>(spawnY) * constants::TILE_SIZE
-        });
-        slime->setFacing(facing);
-        slime->load();
-        m_mobs.push_back(std::move(slime));
-    }
-}
-
-void Game::spawnZombies() {
-    int count = 1 + std::rand() % 3;
-    int playerTx = math::worldToTileX(m_player->getPosition().x + m_player->getBounds().width / 2);
-    int worldWidth = m_world->getWorldWidth();
-    for (int i = 0; i < count; ++i) {
-        int tx;
-        int facing;
-        int offset = 40 + std::rand() % 30;
-        if (i % 2 == 0) {
-            tx = playerTx - offset;
-            facing = 1;
-        } else {
-            tx = playerTx + offset;
-            facing = -1;
-        }
-        if (tx < 0 || tx >= worldWidth) continue;
-
-        int surfaceY = 0;
-        bool found = false;
-        for (int y = 0; y < m_world->getWorldHeight(); ++y) {
-            if (m_world->getTile(tx, y) != TileId::Air) {
-                surfaceY = y;
-                found = true;
-                break;
-            }
-        }
-        if (!found) continue;
-
-        int spawnY = surfaceY - 2;
-        if (spawnY < 0) spawnY = 0;
-        auto zombie = std::make_unique<Mob>(MobType::Zombie, Vector2{
-            static_cast<float>(tx) * constants::TILE_SIZE,
-            static_cast<float>(spawnY) * constants::TILE_SIZE
-        });
-        zombie->setFacing(facing);
-        zombie->load();
-        m_mobs.push_back(std::move(zombie));
+    m_autosaveTimer += dt;
+    if (m_autosaveTimer >= AUTOSAVE_INTERVAL) {
+        saveGame();
+        m_autosaveTimer = 0.0f;
     }
 }
 
 void Game::newGame(const std::string& name, WorldSize size, int slot) {
-    WorldDimensions dims = getWorldDimensions(size);
-    constants::WORLD_WIDTH = dims.width;
-    constants::WORLD_HEIGHT = dims.height;
-    m_worldSize = size;
-    m_worldName = name;
-    m_currentSlot = slot;
+    unsigned int seed = static_cast<unsigned int>(std::time(nullptr));
+    m_session.newWorld(name, size, slot, seed);
 
-    m_world = std::make_unique<World>();
-    m_player = std::make_unique<Player>();
-    m_player->load();
-    m_mobs.clear();
-    m_particles.clear();
-    m_deathTimer = 0.0f;
-    m_dayTime = 0.0f;
-    m_seed = static_cast<unsigned int>(std::time(nullptr));
+    auto& world = m_session.getWorld();
+    auto& player = m_session.getPlayer();
+    auto& rng = m_session.getRNG();
 
-    
     BeginDrawing();
     ClearBackground(Color{20, 20, 30, 255});
     const char* loadingTitle = "Generating World...";
@@ -706,109 +338,116 @@ void Game::newGame(const std::string& name, WorldSize size, int slot) {
     int loadingW = MeasureText(loadingTitle, loadingSize);
     DrawText(loadingTitle, (constants::SCREEN_WIDTH - loadingW) / 2,
              constants::SCREEN_HEIGHT / 2 - 80, loadingSize, GREEN);
-
-    int barW = 400;
-    int barH = 28;
+    int barW = 400, barH = 28;
     int barX = (constants::SCREEN_WIDTH - barW) / 2;
     int barY = constants::SCREEN_HEIGHT / 2 - 10;
     DrawRectangle(barX, barY, barW, barH, Color{40, 40, 50, 255});
     DrawRectangleLines(barX, barY, barW, barH, Color{80, 80, 120, 255});
-    const char* phaseText = "Preparing...";
-    DrawText(phaseText, (constants::SCREEN_WIDTH - MeasureText(phaseText, 20)) / 2,
+    DrawText("Preparing...", (constants::SCREEN_WIDTH - MeasureText("Preparing...", 20)) / 2,
              barY + barH + 12, 20, Color{120, 120, 140, 255});
     EndDrawing();
 
-    m_world->generate(m_seed, [&](float progress) {
+    world.generate(seed, [&](float progress) {
         BeginDrawing();
         ClearBackground(Color{20, 20, 30, 255});
         DrawText(loadingTitle, (constants::SCREEN_WIDTH - loadingW) / 2,
                  constants::SCREEN_HEIGHT / 2 - 80, loadingSize, GREEN);
-
         DrawRectangle(barX, barY, barW, barH, Color{40, 40, 50, 255});
         DrawRectangleLines(barX, barY, barW, barH, Color{80, 80, 120, 255});
-
         int fillW = static_cast<int>((barW - 4) * progress);
-        if (fillW > 0)
-            DrawRectangle(barX + 2, barY + 2, fillW, barH - 4, GREEN);
-
-        const char* phases[] = {
-            "Terrain...", "Caves...", "Cabins...",
-            "Ores...", "Pockets...", "Trees...", "Islands..."
-        };
-        int phaseIdx = static_cast<int>(progress * 7);
-        if (phaseIdx >= 7) phaseIdx = 6;
-        const char* phase = phases[phaseIdx];
-        DrawText(phase, (constants::SCREEN_WIDTH - MeasureText(phase, 20)) / 2,
+        if (fillW > 0) DrawRectangle(barX + 2, barY + 2, fillW, barH - 4, GREEN);
+        const char* phases[] = {"Terrain...", "Caves...", "Cabins...", "Ores...", "Pockets...", "Trees...", "Islands..."};
+        int phaseIdx = std::min(static_cast<int>(progress * 7), 6);
+        DrawText(phases[phaseIdx], (constants::SCREEN_WIDTH - MeasureText(phases[phaseIdx], 20)) / 2,
                  barY + barH + 12, 20, Color{120, 120, 140, 255});
-
         std::string pct = std::to_string(static_cast<int>(progress * 100)) + "%";
         DrawText(pct.c_str(), barX + barW + 10, barY + 4, 20, GREEN);
-
         EndDrawing();
     });
 
-    m_minimap->rebuild(*m_world);
+    auto give = [&](TileId id, int count = 1) { player.getInventory().addItem(id, count); };
+    give(TileId::CopperPickaxe, 1);
+    give(TileId::CopperAxe, 1);
+    give(TileId::CopperSword, 1);
 
-    spawnSlimes();
+    m_session.getMinimap().rebuild(world);
 
-    Vector2 spawnPos = findSafeSpawnPosition(*m_world);
-    m_player->setPosition(spawnPos);
-    m_player->setVelocity({0, 0});
+    MobSpawner::spawnSlimes(world, m_session.getMobs(), player, rng);
 
-    m_camera.update(*m_player);
+    Vector2 spawnPos = DeathSystem::findSafeSpawnPosition(world);
+    player.setPosition(spawnPos);
+    player.setVelocity({0, 0});
+
+    m_camera.update(player);
 
     saveGame();
+    m_totalKills = 0;
+    m_autosaveTimer = 0.0f;
 }
 
 void Game::loadGame(int slot) {
     std::string dataPath = SaveManager::getSlotDataPath(slot);
-    if (!SaveManager::saveExists(dataPath)) {
-        return;
-    }
+    if (!SaveManager::saveExists(dataPath)) return;
 
     SlotInfo info = SaveManager::getSlotInfo(slot);
     WorldDimensions dims = getWorldDimensions(info.size);
     constants::WORLD_WIDTH = dims.width;
     constants::WORLD_HEIGHT = dims.height;
-    m_worldSize = info.size;
-    m_worldName = info.name;
-    m_currentSlot = slot;
-    m_seed = info.seed;
 
-    m_world = std::make_unique<World>();
-    m_player = std::make_unique<Player>();
-    m_player->load();
-    m_minimap = std::make_unique<Minimap>();
-    SaveManager::loadSlot(slot, *m_world, *m_player);
-    m_minimap->rebuild(*m_world);
-    m_particles.clear();
-    m_camera.update(*m_player);
+    auto world = std::make_unique<World>();
+    auto player = std::make_unique<Player>();
+    player->load();
+
+    SaveManager::loadSlot(slot, *world, *player);
+
+    {
+        auto pos = player->getPosition();
+        std::ofstream log("/tmp/opencode_spawn_debug.log", std::ios::app);
+        log << "LOAD: player pos=(" << pos.x << "," << pos.y << ")\n";
+        log << "world size=" << constants::WORLD_WIDTH << "x" << constants::WORLD_HEIGHT << "\n";
+        log.close();
+    }
+
+    m_session.adoptWorld(std::move(world), std::move(player), slot, info.size, info.name, info.seed);
+
+    {
+        auto& p = m_session.getPlayer();
+        Vector2 spawnPos = DeathSystem::findSafeSpawnPosition(m_session.getWorld());
+        p.setPosition(spawnPos);
+        p.setVelocity({0, 0});
+        auto pos = p.getPosition();
+        std::ofstream log("/tmp/opencode_spawn_debug.log", std::ios::app);
+        log << "LOAD-SPAWN: player pos=(" << pos.x << "," << pos.y << ")\n";
+        log.close();
+    }
+
+    m_session.getMinimap().rebuild(m_session.getWorld());
+
+    m_camera.update(m_session.getPlayer());
+    {
+        auto& p = m_session.getPlayer();
+        auto pos = p.getPosition();
+        std::ofstream log("/tmp/opencode_spawn_debug.log", std::ios::app);
+        log << "AFTER ADOPT: player pos=(" << pos.x << "," << pos.y << ")\n";
+        log.close();
+    }
 }
 
 void Game::saveGame() {
-    if (m_currentSlot < 0) return;
-    SaveManager::saveSlot(m_currentSlot, *m_world, *m_player, m_worldName, m_worldSize, m_seed);
-    std::cout << "Game saved to slot " << m_currentSlot << "." << std::endl;
+    int slot = m_session.getCurrentSlot();
+    if (slot < 0) return;
+    SaveManager::saveSlot(slot, m_session.getWorld(), m_session.getPlayer(),
+                          m_session.getWorldName(), m_session.getWorldSize(), m_session.getSeed());
+    std::cout << "Game saved to slot " << slot << "." << std::endl;
 }
 
 void Game::cleanupWorld() {
-    m_mobs.clear();
-    m_particles.clear();
-    m_world = std::make_unique<World>();
-    m_player = std::make_unique<Player>();
-    m_minimap = std::make_unique<Minimap>();
-    m_deathTimer = 0.0f;
-    m_dayTime = 0.0f;
+    m_session.clear();
 }
 
 void Game::cleanup() {
-    m_player->unload();
-    for (auto& mob : m_mobs) {
-        mob->unload();
-    }
-    m_mobs.clear();
-    m_minimap.reset();
-    UnloadTexture(m_background);
+    m_session.clear();
+    m_renderer.cleanup();
     TextureManager::instance().unloadAll();
     SoundManager::instance().unloadAll();
     CloseAudioDevice();

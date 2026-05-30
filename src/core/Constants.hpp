@@ -12,8 +12,8 @@ constexpr float GRAVITY = 1200.0f;
 constexpr float PLAYER_SPEED = 220.0f;
 constexpr float JUMP_SPEED = -350.0f;
 constexpr float PLAYER_REACH = 5.0f;
-constexpr int HOTBAR_SLOTS = 8;
-constexpr int INVENTORY_SLOTS = 20;
+constexpr int HOTBAR_SLOTS = 9;
+constexpr int INVENTORY_SLOTS = 45;
 constexpr int TARGET_FPS = 60;
 
 }

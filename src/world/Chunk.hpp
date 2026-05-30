@@ -27,9 +27,12 @@ public:
     int getChunkX() const { return m_chunkX; }
     int getChunkY() const { return m_chunkY; }
 
+    bool isDoorOpen(int localX, int localY) const;
+    void setDoorOpen(int localX, int localY, bool open);
+
     void setRawTile(int index, TileId id) { m_tiles[index] = id; }
-    void setRawWater(int index, uint8_t amount) { m_water[index] = amount; }
-    void setRawLava(int index, uint8_t amount) { m_lava[index] = amount; }
+    void setRawLiquid(int index, uint8_t packed) { m_liquid[index] = packed; }
+    uint8_t getRawLiquid(int index) const { return m_liquid[index]; }
 
 private:
     int m_chunkX, m_chunkY;
@@ -37,6 +40,6 @@ private:
     bool m_hasLiquid = false;
     std::array<TileId, constants::CHUNK_SIZE * constants::CHUNK_SIZE> m_tiles;
     std::array<TileId, constants::CHUNK_SIZE * constants::CHUNK_SIZE> m_walls;
-    std::array<uint8_t, constants::CHUNK_SIZE * constants::CHUNK_SIZE> m_water;
-    std::array<uint8_t, constants::CHUNK_SIZE * constants::CHUNK_SIZE> m_lava;
+    std::array<uint8_t, constants::CHUNK_SIZE * constants::CHUNK_SIZE> m_liquid;
+    std::array<bool, constants::CHUNK_SIZE * constants::CHUNK_SIZE> m_doorOpen;
 };
