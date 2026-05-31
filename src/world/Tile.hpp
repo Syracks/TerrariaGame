@@ -2,6 +2,7 @@
 
 #include <raylib.h>
 #include <string>
+#include <cstdint>
 
 enum class TileId : uint8_t {
     Air = 0,
