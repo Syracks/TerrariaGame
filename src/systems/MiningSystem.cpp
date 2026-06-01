@@ -68,10 +68,37 @@ void MiningSystem::tryMineTile(World& world, Player& player, int tileX, int tile
 
         if (toolLevel < requiredLevel) return;
 
+        if (tile == TileId::ChestBlock) {
+            const auto& chestInv = world.getChestConst(tileX, tileY);
+            bool empty = true;
+            for (const auto& slot : chestInv) {
+                if (slot.tileId != TileId::Air && slot.count > 0) {
+                    empty = false;
+                    break;
+                }
+            }
+            if (!empty) return;
+        }
+
         world.setTile(tileX, tileY, TileId::Air);
         player.getInventory().addItem(tile, 1);
 
-        if (tile == TileId::Door) {
+        if (tile == TileId::ChestBlock) {
+            world.removeChest(tileX, tileY);
+        } else if (tile == TileId::WoodenTable) {
+            int tlX = tileX, tlY = tileY;
+            if (world.isInBounds(tileX-1, tileY) && world.getTile(tileX-1, tileY) == TileId::WoodenTable)
+                tlX--;
+            if (world.isInBounds(tileX, tileY-1) && world.getTile(tileX, tileY-1) == TileId::WoodenTable)
+                tlY--;
+            if (world.isInBounds(tlX+1, tlY) && world.getTile(tlX+1, tlY) == TileId::WoodenTable &&
+                world.isInBounds(tlX, tlY+1) && world.getTile(tlX, tlY+1) == TileId::WoodenTable &&
+                world.isInBounds(tlX+1, tlY+1) && world.getTile(tlX+1, tlY+1) == TileId::WoodenTable) {
+                world.setTile(tlX+1, tlY, TileId::Air);
+                world.setTile(tlX, tlY+1, TileId::Air);
+                world.setTile(tlX+1, tlY+1, TileId::Air);
+            }
+        } else if (tile == TileId::Door) {
             if (world.isInBounds(tileX, tileY - 1) && world.getTile(tileX, tileY - 1) == TileId::Door)
                 world.setTile(tileX, tileY - 1, TileId::Air);
             if (world.isInBounds(tileX, tileY + 1) && world.getTile(tileX, tileY + 1) == TileId::Door)
@@ -116,6 +143,8 @@ float MiningSystem::getMiningTime(TileId tile, TileId tool) {
             case TileId::Furnace:       baseTime = 0.50f; requiredLevel = 0; break;
             case TileId::Anvil:         baseTime = 0.40f; requiredLevel = 0; break;
             case TileId::ChestBlock:    baseTime = 0.40f; requiredLevel = 0; break;
+            case TileId::WoodenChair:   baseTime = 0.30f; requiredLevel = 0; break;
+            case TileId::WoodenTable:   baseTime = 0.35f; requiredLevel = 0; break;
             default:                    return 0.0f;
         }
 

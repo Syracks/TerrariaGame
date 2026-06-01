@@ -7,6 +7,9 @@
 #include "core/TextureManager.hpp"
 #include <raylib.h>
 #include <string>
+#include <cmath>
+
+constexpr float CYCLE_LENGTH = 300.0f + 120.0f;  // day + night
 
 void HUD::renderPlayerHP(const Player& player) {
     int barW = 200;
@@ -28,8 +31,9 @@ void HUD::renderPlayerHP(const Player& player) {
     DrawText(text.c_str(), x + (barW - textW) / 2, y + 4, 14, WHITE);
 }
 
-void HUD::render(const Player& player) {
+void HUD::render(const Player& player, float dayTime) {
     renderPlayerHP(player);
+    renderTime(dayTime);
     const auto& inventory = player.getInventory();
     const auto& slots = inventory.getSlots();
     int selected = inventory.getSelectedIndex();
@@ -74,4 +78,17 @@ void HUD::render(const Player& player) {
     const auto& selectedDef = reg.get(slots[selected].tileId);
     std::string selectedName = "Selected: " + selectedDef.name;
     DrawText(selectedName.c_str(), 10, startY - 25, 16, WHITE);
+}
+
+void HUD::renderTime(float dayTime) {
+    float t = dayTime / CYCLE_LENGTH;
+    float totalHours = t * 24.0f + 8.0f;
+    int hours = static_cast<int>(totalHours) % 24;
+    int minutes = static_cast<int>((totalHours - std::floor(totalHours)) * 60.0f);
+
+    std::string period = (hours >= 8 && hours < 20) ? "Day" : "Night";
+    std::string timeStr = std::to_string(hours / 10) + std::to_string(hours % 10) + ":" +
+                          std::to_string(minutes / 10) + std::to_string(minutes % 10) + " " + period;
+
+    DrawText(timeStr.c_str(), 10, 15, 18, WHITE);
 }

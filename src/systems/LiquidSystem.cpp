@@ -18,6 +18,9 @@ namespace {
     constexpr int MAX_LIQUID = MAX_LIQUID_LEVEL;
     constexpr float TICK_INTERVAL = 0.1f;
     constexpr int MAX_TILES_PER_TICK = 2000;
+
+    constexpr int dx4[] = {-1, 1, 0, 0};
+    constexpr int dy4[] = {0, 0, -1, 1};
 }
 
 static bool isSolidBlock(const World& world, int x, int y) {
@@ -95,10 +98,8 @@ void LiquidSystem::update(World& world, float dt) {
                 }
 
                 for (int d = 0; d < 4; ++d) {
-                    static const int dx[] = {-1, 1, 0, 0};
-                    static const int dy[] = {0, 0, -1, 1};
-                    int nx = x + dx[d];
-                    int ny = y + dy[d];
+                    int nx = x + dx4[d];
+                    int ny = y + dy4[d];
                     if (!world.isInBounds(nx, ny)) continue;
                     uint8_t nl = isLava ? world.getLava(nx, ny) : world.getWater(nx, ny);
                     if (absdiff(level, nl) > 1 && nl < MAX_LIQUID && level > 0) {
@@ -156,7 +157,7 @@ process:
                 if (nx < 0 || nx >= constants::WORLD_WIDTH) continue;
                 if (isSolidBlock(world, nx, ty)) continue;
                 uint8_t nl = isLava ? world.getLava(nx, ty) : world.getWater(nx, ty);
-                if (nl < (uint8_t)remaining) {
+                if (nl < static_cast<uint8_t>(remaining)) {
                     int transfer = std::min(fr, (remaining - (int)nl) / 2);
                     if (transfer > 0) {
                         remaining -= transfer;

@@ -11,11 +11,16 @@
 #include <algorithm>
 #include <fstream>
 
+#ifdef DEBUG
+#define DBG_LOG(x) do { std::ofstream log("/tmp/opencode_spawn_debug.log", std::ios::app); log << x << "\n"; } while(0)
+#else
+#define DBG_LOG(x)
+#endif
+
 Vector2 DeathSystem::findSafeSpawnPosition(const World& world) {
     int centerX = world.getWorldWidth() / 2;
 
     auto isSurfaceBlock = [&](int x, int y) -> bool {
-        if (!world.isInBounds(x, y)) return false;
         if (!world.isInBounds(x, y)) return false;
         TileId id = world.getTile(x, y);
         if (id == TileId::Air) return false;
@@ -31,11 +36,7 @@ Vector2 DeathSystem::findSafeSpawnPosition(const World& world) {
             if (!isSurfaceBlock(x, y)) continue;
             float spawnY = static_cast<float>(y) * constants::TILE_SIZE - 32.0f;
 
-            std::ofstream log("/tmp/opencode_spawn_debug.log");
-            log << "Spawn at tile (" << x << "," << y << ")\n";
-            log << "spawnY=" << spawnY << "\n";
-            log << "feet at " << (spawnY + 32) << " = " << y * 16 << "\n";
-            log.close();
+            DBG_LOG("Spawn at tile (" << x << "," << y << ") spawnY=" << spawnY);
 
             return {
                 static_cast<float>(x * constants::TILE_SIZE),
@@ -44,10 +45,7 @@ Vector2 DeathSystem::findSafeSpawnPosition(const World& world) {
         }
     }
 
-    std::ofstream log("/tmp/opencode_spawn_debug.log");
-    log << "FALLBACK - no surface block found!\n";
-    log << "centerX=" << centerX << "\n";
-    log.close();
+    DBG_LOG("FALLBACK - no surface block found! centerX=" << centerX);
 
     return {
         static_cast<float>(centerX * constants::TILE_SIZE),

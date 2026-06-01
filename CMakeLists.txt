@@ -15,8 +15,49 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(raylib)
 
-file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
-    src/*.cpp
+set(SOURCES
+    src/app/Game.cpp
+    src/app/GameRenderer.cpp
+    src/app/CameraController.cpp
+    src/app/GameSession.cpp
+    src/app/MobSpawner.cpp
+    src/app/PlayerController.cpp
+    src/core/SoundManager.cpp
+    src/core/TextureManager.cpp
+    src/crafting/Recipe.cpp
+    src/entities/Mob.cpp
+    src/entities/Player.cpp
+    src/items/Inventory.cpp
+    src/items/ItemDefinition.cpp
+    src/items/Tool.cpp
+    src/main.cpp
+    src/save/SaveManager.cpp
+    src/systems/CollisionSystem.cpp
+    src/systems/CombatSystem.cpp
+    src/systems/DeathSystem.cpp
+    src/systems/InteractionSystem.cpp
+    src/systems/LiquidSystem.cpp
+    src/systems/MiningSystem.cpp
+    src/systems/ParticleSystem.cpp
+    src/systems/PhysicsSystem.cpp
+    src/systems/RenderSystem.cpp
+    src/ui/HUD.cpp
+    src/ui/InventoryScreen.cpp
+    src/ui/MainMenu.cpp
+    src/ui/Minimap.cpp
+    src/ui/SettingsMenu.cpp
+    src/ui/ChestScreen.cpp
+    src/world/Chunk.cpp
+    src/world/TileRegistry.cpp
+    src/world/World.cpp
+    src/world/WorldGenerator.cpp
+)
+
+set(TEST_LIB_SOURCES
+    src/items/Inventory.cpp
+    src/items/ItemDefinition.cpp
+    src/world/TileRegistry.cpp
+    src/crafting/Recipe.cpp
 )
 
 add_executable(Terraria ${SOURCES})
@@ -34,38 +75,21 @@ target_compile_options(Terraria PRIVATE
 
 option(BUILD_TESTS "Build test executables" OFF)
 if (BUILD_TESTS)
-    file(GLOB_RECURSE TEST_SOURCES tests/*.cpp)
-    file(GLOB_RECURSE TEST_LIB_SOURCES
-        src/items/Inventory.cpp
-        src/items/ItemDefinition.cpp
-        src/world/TileRegistry.cpp
-        src/crafting/Recipe.cpp
-    )
+    enable_testing()
 
-    add_executable(test_inventory
-        tests/test_inventory.cpp
-        src/items/Inventory.cpp
-        src/items/ItemDefinition.cpp
-        src/world/TileRegistry.cpp
-    )
-    target_include_directories(test_inventory PRIVATE src)
-    target_link_libraries(test_inventory PRIVATE raylib)
+    add_library(TestLib STATIC ${TEST_LIB_SOURCES})
+    target_include_directories(TestLib PUBLIC src)
+    target_link_libraries(TestLib PUBLIC raylib)
 
-    add_executable(test_recipes
-        tests/test_recipes.cpp
-        src/crafting/Recipe.cpp
-        src/items/ItemDefinition.cpp
-        src/items/Inventory.cpp
-        src/world/TileRegistry.cpp
-    )
-    target_include_directories(test_recipes PRIVATE src)
-    target_link_libraries(test_recipes PRIVATE raylib)
+    add_executable(test_inventory tests/test_inventory.cpp)
+    target_link_libraries(test_inventory PRIVATE TestLib)
+    add_test(NAME test_inventory COMMAND test_inventory)
 
-    add_executable(test_item_definitions
-        tests/test_item_definitions.cpp
-        src/items/ItemDefinition.cpp
-        src/world/TileRegistry.cpp
-    )
-    target_include_directories(test_item_definitions PRIVATE src)
-    target_link_libraries(test_item_definitions PRIVATE raylib)
+    add_executable(test_recipes tests/test_recipes.cpp)
+    target_link_libraries(test_recipes PRIVATE TestLib)
+    add_test(NAME test_recipes COMMAND test_recipes)
+
+    add_executable(test_item_definitions tests/test_item_definitions.cpp)
+    target_link_libraries(test_item_definitions PRIVATE TestLib)
+    add_test(NAME test_item_definitions COMMAND test_item_definitions)
 endif()

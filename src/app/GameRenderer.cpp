@@ -15,10 +15,7 @@
 #include "core/TextureManager.hpp"
 
 namespace {
-    constexpr float DAY_LENGTH = 300.0f;
-    constexpr float NIGHT_LENGTH = 120.0f;
-    constexpr float CYCLE_LENGTH = DAY_LENGTH + NIGHT_LENGTH;
-    constexpr float NIGHT_START = DAY_LENGTH / CYCLE_LENGTH;
+    constexpr float CYCLE_LENGTH = 420.0f;
     constexpr int UNDERGROUND_THRESHOLD = 15;
     constexpr int BEACH_MARGIN = 60;
 }
@@ -69,25 +66,17 @@ void GameRenderer::renderSettingsMenu(SettingsMenu& menu) {
 }
 
 void GameRenderer::renderSky(float dayTime) {
-    float t = dayTime / CYCLE_LENGTH;
-    Color sky;
-    if (t < NIGHT_START) {
-        float p = t / NIGHT_START;
-        sky = {
-            static_cast<unsigned char>(135 + p * 50),
-            static_cast<unsigned char>(206 + p * 30),
-            static_cast<unsigned char>(235 + p * 10),
-            255
-        };
-    } else {
-        float p = (t - NIGHT_START) / (1.0f - NIGHT_START);
-        sky = {
-            static_cast<unsigned char>(185 - p * 130),
-            static_cast<unsigned char>(236 - p * 176),
-            static_cast<unsigned char>(245 - p * 185),
-            255
-        };
-    }
+    float nightAmount = getNightAmount(dayTime);
+
+    Color dayColor = {185, 236, 245, 255};
+    Color nightColor = {20, 25, 55, 255};
+
+    Color sky = {
+        static_cast<unsigned char>(dayColor.r + (nightColor.r - dayColor.r) * nightAmount),
+        static_cast<unsigned char>(dayColor.g + (nightColor.g - dayColor.g) * nightAmount),
+        static_cast<unsigned char>(dayColor.b + (nightColor.b - dayColor.b) * nightAmount),
+        255
+    };
     ClearBackground(sky);
 }
 
@@ -131,23 +120,18 @@ void GameRenderer::renderBackground(float dayTime, const World& world, const Pla
     float bgX = (constants::SCREEN_WIDTH - bgW) / 2.0f;
     float bgY = (constants::SCREEN_HEIGHT - bgH) / 2.0f;
 
-    float t = dayTime / CYCLE_LENGTH;
-    float nightAlpha = (t > NIGHT_START) ? (t - NIGHT_START) / (1.0f - NIGHT_START) : 0.0f;
+    float nightAmount = getNightAmount(dayTime);
 
-    Color bgTint = {
-        static_cast<unsigned char>(255 * (1.0f - nightAlpha * 0.3f)),
-        static_cast<unsigned char>(255 * (1.0f - nightAlpha * 0.5f)),
-        static_cast<unsigned char>(255 * (1.0f - nightAlpha * 0.6f)),
+    Color tint = {
+        static_cast<unsigned char>(255 - nightAmount * 160),
+        static_cast<unsigned char>(255 - nightAmount * 180),
+        static_cast<unsigned char>(255 - nightAmount * 140),
         255
     };
-    DrawTextureEx(*bg, {bgX, bgY}, 0.0f, scale, bgTint);
+    DrawTextureEx(*bg, {bgX, bgY}, 0.0f, scale, tint);
 }
 
 void GameRenderer::renderWorldAndEntities(GameSession& session, const Camera2D& camera) {
-    float dayTime = session.getDayTime();
-    float t = dayTime / CYCLE_LENGTH;
-    float nightAlpha = (t > NIGHT_START) ? (t - NIGHT_START) / (1.0f - NIGHT_START) : 0.0f;
-
     Camera2D cam = camera;
     cam.target.x = std::round(cam.target.x);
     cam.target.y = std::round(cam.target.y);
@@ -158,7 +142,7 @@ void GameRenderer::renderWorldAndEntities(GameSession& session, const Camera2D& 
     const auto& particles = session.getParticles();
 
     BeginMode2D(cam);
-    RenderSystem::renderWorld(world, cam, nightAlpha);
+    RenderSystem::renderWorld(world, cam);
     for (auto& mob : mobs) {
         mob->render();
     }
@@ -170,12 +154,12 @@ void GameRenderer::renderWorldAndEntities(GameSession& session, const Camera2D& 
         player.getPosition().y + player.getBounds().height / 2.0f
     };
 
-    RenderSystem::renderLightingOverlay(world, cam, nightAlpha, playerCenter);
+    RenderSystem::renderLightingOverlay(world, cam, playerCenter);
     EndMode2D();
 }
 
 void GameRenderer::renderHUD(GameSession& session) {
-    HUD::render(session.getPlayer());
+    HUD::render(session.getPlayer(), session.getDayTime());
 }
 
 void GameRenderer::renderMinimap(GameSession& session) {
@@ -185,6 +169,25 @@ void GameRenderer::renderMinimap(GameSession& session) {
         player.getPosition().y + player.getBounds().height / 2.0f
     };
     session.getMinimap().render(session.getWorld(), playerCenter, session.isMinimapVisible());
+}
+
+float GameRenderer::getNightAmount(float dayTime) {
+    float t = dayTime / CYCLE_LENGTH;
+    // t=0=8am dawn, t=0.5=8pm dusk, t=1.0=8am next dawn, peaks at t=0.75=2am midnight
+    if (t <= 0.35f) return 0.0f;
+    if (t <= 0.50f) return (t - 0.35f) / 0.15f * 0.4f;
+    if (t <= 0.65f) return 0.4f + (t - 0.50f) / 0.15f * 0.6f;
+    if (t <= 0.85f) return 1.0f;
+    return (1.0f - t) / 0.15f;
+}
+
+void GameRenderer::renderNightOverlay(float dayTime) {
+    float night = getNightAmount(dayTime);
+    if (night <= 0.0f) return;
+
+    unsigned char alpha = static_cast<unsigned char>(140 * night);
+    DrawRectangle(0, 0, constants::SCREEN_WIDTH, constants::SCREEN_HEIGHT,
+                  Color{8, 15, 50, alpha});
 }
 
 void GameRenderer::renderDeathOverlay(float deathTimer) {
@@ -206,6 +209,7 @@ void GameRenderer::renderGame(GameSession& session, const Camera2D& camera,
     renderSky(session.getDayTime());
     renderBackground(session.getDayTime(), world, session.getPlayer());
     renderWorldAndEntities(session, camera);
+    renderNightOverlay(session.getDayTime());
     renderHUD(session);
 
     renderMinimap(session);

@@ -73,9 +73,9 @@ bool TextureManager::loadAll() {
     loadToolTexture("iron_hammer", TileId::IronHammer);
     loadToolTexture("gold_hammer", TileId::GoldHammer);
     loadTileTexture("hammer", TileId::Hammer);
-    loadTileTexture("door_opened", TileId::Door);
+    loadTileTexture("door_closed", TileId::Door);
     {
-        std::string path = "assets/textures/tiles/door_closed_0.png";
+        std::string path = "assets/textures/tiles/door_opened_0.png";
         if (FileExists(path.c_str())) {
             m_doorOpenTexture = LoadTexture(path.c_str());
         }

@@ -37,8 +37,8 @@ private:
     MobType m_type;
     MobState m_state = MobState::Idle;
 
-    Texture2D m_tex{};
-    Texture2D m_texFlipped{};
+    mutable Texture2D m_tex{};
+    mutable Texture2D m_texFlipped{};
 
     Vector2 m_playerPos{};
     float m_speed = 0.0f;

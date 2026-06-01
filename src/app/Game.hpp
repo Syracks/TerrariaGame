@@ -41,5 +41,6 @@ private:
     GameSession m_session;
 
     float m_autosaveTimer = 0.0f;
+    int m_spawnGuard = 0;
     int m_totalKills = 0;
 };

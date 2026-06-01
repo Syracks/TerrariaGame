@@ -1,7 +1,7 @@
 #include "SoundManager.hpp"
 
 #include <cmath>
-#include <cstdlib>
+#include <random>
 #include <cstring>
 #include <vector>
 
@@ -52,7 +52,9 @@ namespace {
                 float env = 1.0f;
                 float release = 0.003f;
                 if (t > duration - release) env = (duration - t) / release;
-                float noise = (static_cast<float>(std::rand()) / RAND_MAX) * 2.0f - 1.0f;
+                static std::mt19937 noiseRng(std::random_device{}());
+                std::uniform_real_distribution<float> noiseDist(-1.0f, 1.0f);
+                float noise = noiseDist(noiseRng);
                 write(env * volume * noise);
             }
         }

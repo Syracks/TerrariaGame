@@ -3,8 +3,8 @@
 #include "world/WorldGenerator.hpp"
 
 namespace {
-    constexpr float DAY_LENGTH = 300.0f;
-    constexpr float NIGHT_LENGTH = 120.0f;
+    constexpr float DAY_LENGTH = 210.0f;
+    constexpr float NIGHT_LENGTH = 210.0f;
     constexpr float CYCLE_LENGTH = DAY_LENGTH + NIGHT_LENGTH;
 }
 

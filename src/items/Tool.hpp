@@ -8,7 +8,7 @@ class Inventory;
 bool isTool(TileId id);
 bool isPickaxe(TileId id);
 bool isAxe(TileId id);
-bool isSword_(TileId id);
+bool isSword(TileId id);
 bool isHammer(TileId id);
 bool isTreeTile(TileId id);
 bool isWallItem(TileId id);

@@ -61,9 +61,9 @@ private:
 private:
     Inventory m_inventory;
 
-    Texture2D m_idleTex{};
-    Texture2D m_walkTex{};
-    Texture2D m_jumpTex{};
+    mutable Texture2D m_idleTex{};
+    mutable Texture2D m_walkTex{};
+    mutable Texture2D m_jumpTex{};
 
     std::array<FrameInfo, 25> m_walkFrames;
     std::array<FrameInfo, 25> m_jumpFrames;

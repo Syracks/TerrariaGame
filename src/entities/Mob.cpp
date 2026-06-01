@@ -2,7 +2,7 @@
 #include "core/Constants.hpp"
 
 #include <cmath>
-#include <cstdlib>
+#include <random>
 
 namespace {
     constexpr float SLIME_W = 16.0f;
@@ -138,7 +138,11 @@ void Mob::update(float dt) {
 void Mob::idleAI(float dt) {
     m_hopCooldown -= dt;
     if (m_hopCooldown <= 0.0f && m_onGround) {
-        m_hopCooldown = IDLE_HOP_INTERVAL + static_cast<float>(std::rand() % 100) / 100.0f;
+        {
+        static std::mt19937 rng(std::random_device{}());
+        std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+        m_hopCooldown = IDLE_HOP_INTERVAL + dist(rng);
+    }
         m_velocity.x = static_cast<float>(m_facing) * IDLE_HOP_VX;
         m_velocity.y = IDLE_HOP_VY;
     } else if (m_onGround) {
@@ -185,7 +189,7 @@ void Mob::zombieChaseAI(float dt) {
 }
 
 void Mob::render() const {
-    Texture2D* tex = const_cast<Texture2D*>(m_facing == 1 ? &m_tex : &m_texFlipped);
+    Texture2D* tex = m_facing == 1 ? &m_tex : &m_texFlipped;
     if (tex && tex->id > 0) {
         Rectangle src = {0, 0, static_cast<float>(m_tex.width),
                          static_cast<float>(m_tex.height)};

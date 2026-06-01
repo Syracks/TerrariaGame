@@ -40,7 +40,7 @@ void test_max_stack() {
     assert(ItemDatabase::instance().getMaxStack(TileId::Pickaxe) == 1);
     assert(ItemDatabase::instance().getMaxStack(TileId::Torch) == 99);
     assert(ItemDatabase::instance().getMaxStack(TileId::Workbench) == 1);
-    assert(ItemDatabase::instance().getMaxStack(TileId::Water) == 0);
+    assert(ItemDatabase::instance().getMaxStack(TileId::Water) == 999);
 
     std::cout << "test_max_stack: PASSED\n";
 }

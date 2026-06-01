@@ -1,21 +1,25 @@
 #include "ParticleSystem.hpp"
 #include "core/Constants.hpp"
 
-#include <cstdlib>
+#include <random>
 #include <cmath>
 
 void ParticleSystem::emit(Vector2 pos, Vector2 vel, Color color, float life, float size, int count) {
+    static std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+    std::uniform_real_distribution<float> dist01(0.0f, 1.0f);
+
     for (int i = 0; i < count; ++i) {
         Particle p;
         p.position = pos;
         p.velocity = {
-            vel.x + static_cast<float>(std::rand() % 100 - 50) * 0.5f,
-            vel.y + static_cast<float>(std::rand() % 100 - 50) * 0.5f
+            vel.x + dist(rng) * 25.0f,
+            vel.y + dist(rng) * 25.0f
         };
         p.color = color;
-        p.life = life + static_cast<float>(std::rand() % 100) / 100.0f * life * 0.5f;
+        p.life = life + dist01(rng) * life * 0.5f;
         p.maxLife = p.life;
-        p.size = size + static_cast<float>(std::rand() % 100) / 100.0f * size;
+        p.size = size + dist01(rng) * size;
         m_particles.push_back(p);
     }
 }

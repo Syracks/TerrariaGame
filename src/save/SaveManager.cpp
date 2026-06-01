@@ -11,10 +11,15 @@
 #include <sstream>
 #include <iostream>
 #include <sys/stat.h>
+#include <cerrno>
 #include <cstdlib>
 
-static void ensureDir(const std::string& path) {
-    mkdir(path.c_str(), 0755);
+static bool ensureDir(const std::string& path) {
+    if (mkdir(path.c_str(), 0755) != 0 && errno != EEXIST) {
+        std::cerr << "Failed to create directory: " << path << " (errno=" << errno << ")" << std::endl;
+        return false;
+    }
+    return true;
 }
 
 std::string SaveManager::getSlotPath(int slot) {
@@ -46,7 +51,11 @@ SlotInfo SaveManager::getSlotInfo(int slot) {
     else info.size = WorldSize::Medium;
     std::string seedStr;
     std::getline(file, seedStr);
-    info.seed = static_cast<unsigned int>(std::stoul(seedStr));
+    try {
+        info.seed = static_cast<unsigned int>(std::stoul(seedStr));
+    } catch (...) {
+        info.seed = 0;
+    }
     return info;
 }
 
@@ -62,7 +71,7 @@ bool SaveManager::saveSlotMeta(int slot, const SlotInfo& info) {
 }
 
 bool SaveManager::saveSlot(int slot, const World& world, const Player& player,
-                           const std::string& name, WorldSize size, unsigned int seed) {
+                           const std::string& name, WorldSize size, unsigned int seed, float dayTime) {
     ensureDir("saves");
     ensureDir(getSlotPath(slot));
     SlotInfo info;
@@ -72,11 +81,11 @@ bool SaveManager::saveSlot(int slot, const World& world, const Player& player,
     info.occupied = true;
     if (!saveSlotMeta(slot, info))
         return false;
-    return save(world, player, getSlotDataPath(slot));
+    return save(world, player, getSlotDataPath(slot), dayTime);
 }
 
-bool SaveManager::loadSlot(int slot, World& world, Player& player) {
-    return load(world, player, getSlotDataPath(slot));
+bool SaveManager::loadSlot(int slot, World& world, Player& player, float& dayTime) {
+    return load(world, player, getSlotDataPath(slot), dayTime);
 }
 
 void SaveManager::deleteSlot(int slot) {
@@ -92,7 +101,7 @@ std::array<SlotInfo, SaveManager::SLOT_COUNT> SaveManager::listSlots() {
     return slots;
 }
 
-bool SaveManager::save(const World& world, const Player& player, const std::string& filepath) {
+bool SaveManager::save(const World& world, const Player& player, const std::string& filepath, float dayTime) {
     std::ofstream file(filepath);
     if (!file.is_open()) {
         std::cerr << "Failed to open save file for writing: " << filepath << std::endl;
@@ -102,6 +111,7 @@ bool SaveManager::save(const World& world, const Player& player, const std::stri
     file << "TERRARIA_SAVE_V1\n";
     file << "WORLD " << world.getWorldWidth() << " " << world.getWorldHeight() << "\n";
     file << "PLAYER " << player.getPosition().x << " " << player.getPosition().y << "\n";
+    file << "DAY_TIME " << dayTime << "\n";
 
     for (const auto& [key, chunk] : world.getChunks()) {
         if (!chunk->isDirty())
@@ -170,7 +180,7 @@ bool SaveManager::save(const World& world, const Player& player, const std::stri
     return true;
 }
 
-bool SaveManager::load(World& world, Player& player, const std::string& filepath) {
+bool SaveManager::load(World& world, Player& player, const std::string& filepath, float& dayTime) {
     std::ifstream file(filepath);
     if (!file.is_open()) {
         std::cerr << "No save file found: " << filepath << std::endl;
@@ -195,6 +205,14 @@ bool SaveManager::load(World& world, Player& player, const std::string& filepath
         if (keyword == "WORLD") {
             int w, h;
             iss >> w >> h;
+            if (w > 0 && h > 0 && w <= 8192 && h <= 4096) {
+                constants::WORLD_WIDTH = w;
+                constants::WORLD_HEIGHT = h;
+            }
+        } else if (keyword == "DAY_TIME") {
+            float dt;
+            iss >> dt;
+            if (dt >= 0.0f) dayTime = dt;
         } else if (keyword == "PLAYER") {
             float x, y;
             iss >> x >> y;
@@ -244,16 +262,18 @@ bool SaveManager::load(World& world, Player& player, const std::string& filepath
         }
     }
 
-    std::vector<int> heights(constants::WORLD_WIDTH, 0);
-    for (int x = 0; x < constants::WORLD_WIDTH; ++x) {
-        for (int y = 0; y < constants::WORLD_HEIGHT; ++y) {
+    int ww = constants::WORLD_WIDTH;
+    int wh = constants::WORLD_HEIGHT;
+    std::vector<int> heights(ww, 0);
+    for (int x = 0; x < ww; ++x) {
+        for (int y = 0; y < wh; ++y) {
             if (world.getTile(x, y) != TileId::Air) {
                 heights[x] = y;
                 break;
             }
         }
     }
-    std::vector<Biome> biomes(constants::WORLD_WIDTH, Biome::Forest);
+    std::vector<Biome> biomes(ww, Biome::Forest);
     world.setBiomeData(biomes, heights);
 
     return true;

@@ -32,7 +32,9 @@ public:
 
     struct pair_hash {
         std::size_t operator()(const std::pair<int,int>& p) const {
-            return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
+            std::size_t h1 = std::hash<int>()(p.first);
+            std::size_t h2 = std::hash<int>()(p.second);
+            return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
         }
     };
 

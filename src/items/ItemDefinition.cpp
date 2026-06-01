@@ -41,8 +41,8 @@ ItemDatabase::ItemDatabase() {
     m_items[TileId::IronBar]       = def(TileId::IronBar,       "Iron Bar",      999, false, true, tool(0,0,0));
     m_items[TileId::GoldBar]       = def(TileId::GoldBar,       "Gold Bar",      999, false, true, tool(0,0,0));
     m_items[TileId::Gel]           = def(TileId::Gel,           "Gel",           999, false, true, tool(0,0,0));
-    m_items[TileId::Water]         = def(TileId::Water,         "Water",           0, false, false, tool(0,0,0));
-    m_items[TileId::Lava]          = def(TileId::Lava,          "Lava",            0, false, false, tool(0,0,0));
+    m_items[TileId::Water]         = def(TileId::Water,         "Water",         999, false, false, tool(0,0,0));
+    m_items[TileId::Lava]          = def(TileId::Lava,          "Lava",          999, false, false, tool(0,0,0));
     m_items[TileId::Workbench]     = def(TileId::Workbench,     "Workbench",       1, true,  false, tool(0,0,0));
     m_items[TileId::Furnace]       = def(TileId::Furnace,       "Furnace",         1, true,  false, tool(0,0,0));
     m_items[TileId::Anvil]         = def(TileId::Anvil,         "Anvil",           1, true,  false, tool(0,0,0));

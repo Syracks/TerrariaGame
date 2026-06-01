@@ -40,8 +40,7 @@ static void drawTileOverlay(int x, int y, Color color, int height = 3) {
     DrawRectangle(x, y, constants::TILE_SIZE, height, color);
 }
 
-void RenderSystem::renderWorld(const World& world, const Camera2D& camera,
-                               float nightFactor) {
+void RenderSystem::renderWorld(const World& world, const Camera2D& camera) {
     float viewLeft   = camera.target.x - camera.offset.x;
     float viewTop    = camera.target.y - camera.offset.y;
     float viewRight  = viewLeft + constants::SCREEN_WIDTH;
@@ -63,10 +62,15 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera,
                 int py = static_cast<int>(math::tileToWorldY(tileY));
                 TileId foreground = world.getTile(tileX, tileY);
                 unsigned char wallAlpha = (foreground == TileId::Air ||
-                    !world.isSolid(tileX, tileY)) ? 200 : 40;
-                const auto& wdef = registry.get(wall);
-                DrawRectangle(px, py, constants::TILE_SIZE, constants::TILE_SIZE,
-                              Color{wdef.color.r, wdef.color.g, wdef.color.b, wallAlpha});
+                    !world.isSolid(tileX, tileY) || foreground == TileId::Door) ? 200 : 40;
+                const Texture2D& wtex = texMgr.getTexture(wall);
+                if (wtex.id > 0) {
+                    DrawTexture(wtex, px, py, Color{255, 255, 255, wallAlpha});
+                } else {
+                    const auto& wdef = registry.get(wall);
+                    DrawRectangle(px, py, constants::TILE_SIZE, constants::TILE_SIZE,
+                                  Color{wdef.color.r, wdef.color.g, wdef.color.b, wallAlpha});
+                }
             }
         }
     }
@@ -90,6 +94,22 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera,
                         source.y = 0.0f;
                     } else if (world.isInBounds(tileX, tileY - 1) && world.getTile(tileX, tileY - 1) == TileId::Door) {
                         source.y = static_cast<float>(constants::TILE_SIZE);
+                    }
+                    DrawTextureRec(tex, source, {static_cast<float>(px), static_cast<float>(py)}, WHITE);
+                } else if (id == TileId::WoodenTable && tex.width > constants::TILE_SIZE) {
+                    Rectangle source = {0, 0, static_cast<float>(constants::TILE_SIZE), static_cast<float>(constants::TILE_SIZE)};
+                    bool right = world.isInBounds(tileX+1, tileY) && world.getTile(tileX+1, tileY) == TileId::WoodenTable;
+                    bool left  = world.isInBounds(tileX-1, tileY) && world.getTile(tileX-1, tileY) == TileId::WoodenTable;
+                    bool down  = world.isInBounds(tileX, tileY+1) && world.getTile(tileX, tileY+1) == TileId::WoodenTable;
+                    bool up    = world.isInBounds(tileX, tileY-1) && world.getTile(tileX, tileY-1) == TileId::WoodenTable;
+                    if (right && down) {
+                        source.x = 0; source.y = 0;
+                    } else if (left && down) {
+                        source.x = static_cast<float>(constants::TILE_SIZE); source.y = 0;
+                    } else if (right && up) {
+                        source.x = 0; source.y = static_cast<float>(constants::TILE_SIZE);
+                    } else if (left && up) {
+                        source.x = static_cast<float>(constants::TILE_SIZE); source.y = static_cast<float>(constants::TILE_SIZE);
                     }
                     DrawTextureRec(tex, source, {static_cast<float>(px), static_cast<float>(py)}, WHITE);
                 } else {
@@ -260,7 +280,6 @@ int findMainSurfaceY(const World& world, int tileX) {
 
 void RenderSystem::renderLightingOverlay(const World& world,
                                          const Camera2D& camera,
-                                         float nightFactor,
                                          Vector2 playerLightPos) {
     float viewLeft   = camera.target.x - camera.offset.x;
     float viewTop    = camera.target.y - camera.offset.y;
@@ -270,14 +289,7 @@ void RenderSystem::renderLightingOverlay(const World& world,
     int startTileX = std::max(0, math::worldToTileX(viewLeft) - 2);
     int endTileX   = std::min(constants::WORLD_WIDTH - 1, math::worldToTileX(viewRight) + 2);
 
-    static std::vector<int> surfaceY;
-    surfaceY.assign(endTileX - startTileX + 1, constants::WORLD_HEIGHT);
-    for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
-        surfaceY[tileX - startTileX] = findMainSurfaceY(world, tileX);
-    }
-
-    static std::vector<LightSrc> lights;
-    lights.clear();
+    std::vector<LightSrc> lights;
 
     int startTileY = std::max(0, math::worldToTileY(viewTop) - 2);
     int endTileY   = std::min(constants::WORLD_HEIGHT - 1, math::worldToTileY(viewBottom) + 2);
@@ -301,55 +313,19 @@ void RenderSystem::renderLightingOverlay(const World& world,
         });
     }
 
-    float surfaceLight = SURFACE_LIGHT * (1.0f - nightFactor * 0.7f);
+    int playerTileX = math::worldToTileX(playerLightPos.x);
+    int playerTileY = math::worldToTileY(playerLightPos.y);
+    int sy = findMainSurfaceY(world, playerTileX);
+    int depth = playerTileY - sy;
 
-    int cellSize = std::max(8, constants::TILE_SIZE / 2);
-
-    int startX = static_cast<int>(std::floor(viewLeft / cellSize)) * cellSize;
-    int startY = static_cast<int>(std::floor(viewTop / cellSize)) * cellSize;
-    int endX = static_cast<int>(viewRight) + cellSize;
-    int endY = static_cast<int>(viewBottom) + cellSize;
-
-    for (int wx = startX; wx <= endX; wx += cellSize) {
-        int tileX = math::worldToTileX(static_cast<float>(wx) + cellSize * 0.5f);
-        tileX = std::clamp(tileX, startTileX, endTileX);
-
-        int sy = surfaceY[tileX - startTileX];
-
-        for (int wy = startY; wy <= endY; wy += cellSize) {
-            int tileY = math::worldToTileY(static_cast<float>(wy) + cellSize * 0.5f);
-
-            float cx = static_cast<float>(wx) + cellSize * 0.5f;
-            float cy = static_cast<float>(wy) + cellSize * 0.5f;
-
-            int depth = tileY - sy;
-
-            float light;
-            if (depth <= 0) {
-                light = surfaceLight;
-            } else {
-                float t = smooth01(static_cast<float>(depth) / DEPTH_FALLOFF);
-                light = surfaceLight + (UNDERGROUND_LIGHT - surfaceLight) * t;
-            }
-
-            for (const auto& src : lights) {
-                float dx = cx - src.x;
-                float dy = cy - src.y;
-                float dist = std::sqrt(dx * dx + dy * dy);
-                if (dist < src.radius) {
-                    float f = 1.0f - dist / src.radius;
-                    float localLight = src.intensity * smooth01(f);
-                    light = std::max(light, localLight);
-                }
-            }
-
-            light = clamp01(light);
-            unsigned char alpha = static_cast<unsigned char>((1.0f - light) * MAX_DARKNESS);
-
-            if (alpha > 3) {
-                DrawRectangle(wx, wy, cellSize + 1, cellSize + 1,
-                              Color{0, 0, 0, alpha});
-            }
+    if (depth > 0) {
+        float t = smooth01(static_cast<float>(depth) / DEPTH_FALLOFF);
+        float darkness = (1.0f - SURFACE_LIGHT) + (SURFACE_LIGHT - UNDERGROUND_LIGHT) * t;
+        darkness = clamp01(darkness);
+        unsigned char alpha = static_cast<unsigned char>(darkness * MAX_DARKNESS);
+        if (alpha > 3) {
+            DrawRectangle(0, 0, constants::SCREEN_WIDTH, constants::SCREEN_HEIGHT,
+                          Color{0, 0, 0, alpha});
         }
     }
 

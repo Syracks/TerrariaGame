@@ -22,7 +22,6 @@
 
 #include <raylib.h>
 #include <ctime>
-#include <fstream>
 #include <cmath>
 #include <iostream>
 #include <algorithm>
@@ -205,12 +204,11 @@ void Game::update(float dt) {
 
     m_session.advanceDayTime(dt);
 
-    static int spawnGuard = 10;
-    if (spawnGuard > 0) {
+    if (m_spawnGuard > 0) {
         Vector2 safe = DeathSystem::findSafeSpawnPosition(world);
         player.setPosition(safe);
         player.setVelocity({0, 0});
-        spawnGuard--;
+        m_spawnGuard--;
     }
 
     if (player.getHealth() > 0) {
@@ -383,6 +381,7 @@ void Game::newGame(const std::string& name, WorldSize size, int slot) {
     saveGame();
     m_totalKills = 0;
     m_autosaveTimer = 0.0f;
+    m_spawnGuard = 10;
 }
 
 void Game::loadGame(int slot) {
@@ -398,47 +397,28 @@ void Game::loadGame(int slot) {
     auto player = std::make_unique<Player>();
     player->load();
 
-    SaveManager::loadSlot(slot, *world, *player);
-
-    {
-        auto pos = player->getPosition();
-        std::ofstream log("/tmp/opencode_spawn_debug.log", std::ios::app);
-        log << "LOAD: player pos=(" << pos.x << "," << pos.y << ")\n";
-        log << "world size=" << constants::WORLD_WIDTH << "x" << constants::WORLD_HEIGHT << "\n";
-        log.close();
-    }
+    float dayTime = 0.0f;
+    SaveManager::loadSlot(slot, *world, *player, dayTime);
 
     m_session.adoptWorld(std::move(world), std::move(player), slot, info.size, info.name, info.seed);
-
-    {
-        auto& p = m_session.getPlayer();
-        Vector2 spawnPos = DeathSystem::findSafeSpawnPosition(m_session.getWorld());
-        p.setPosition(spawnPos);
-        p.setVelocity({0, 0});
-        auto pos = p.getPosition();
-        std::ofstream log("/tmp/opencode_spawn_debug.log", std::ios::app);
-        log << "LOAD-SPAWN: player pos=(" << pos.x << "," << pos.y << ")\n";
-        log.close();
-    }
+    m_session.setDayTime(dayTime);
 
     m_session.getMinimap().rebuild(m_session.getWorld());
 
     m_camera.update(m_session.getPlayer());
-    {
-        auto& p = m_session.getPlayer();
-        auto pos = p.getPosition();
-        std::ofstream log("/tmp/opencode_spawn_debug.log", std::ios::app);
-        log << "AFTER ADOPT: player pos=(" << pos.x << "," << pos.y << ")\n";
-        log.close();
-    }
+
+    m_spawnGuard = 0;
 }
 
 void Game::saveGame() {
     int slot = m_session.getCurrentSlot();
     if (slot < 0) return;
-    SaveManager::saveSlot(slot, m_session.getWorld(), m_session.getPlayer(),
-                          m_session.getWorldName(), m_session.getWorldSize(), m_session.getSeed());
-    std::cout << "Game saved to slot " << slot << "." << std::endl;
+    if (!SaveManager::saveSlot(slot, m_session.getWorld(), m_session.getPlayer(),
+                               m_session.getWorldName(), m_session.getWorldSize(),
+                               m_session.getSeed(), m_session.getDayTime()))
+        std::cerr << "Failed to save game to slot " << slot << "!" << std::endl;
+    else
+        std::cout << "Game saved to slot " << slot << "." << std::endl;
 }
 
 void Game::cleanupWorld() {

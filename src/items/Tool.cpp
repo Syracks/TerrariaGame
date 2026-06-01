@@ -25,7 +25,7 @@ bool isAxe(TileId id) {
            id == TileId::IronAxe || id == TileId::GoldAxe;
 }
 
-bool isSword_(TileId id) {
+bool isSword(TileId id) {
     return id == TileId::Sword || id == TileId::CopperSword ||
            id == TileId::IronSword || id == TileId::GoldSword;
 }
@@ -45,7 +45,7 @@ bool isTreeTile(TileId id) {
 
 bool isWallItem(TileId id) {
     return id == TileId::DirtWall || id == TileId::StoneWall ||
-           id == TileId::PlanksWall;
+           id == TileId::WoodWall || id == TileId::PlanksWall;
 }
 
 void fellTree(World& world, int tileX, int tileY, Inventory& inventory) {

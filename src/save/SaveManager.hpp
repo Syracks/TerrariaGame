@@ -25,13 +25,13 @@ public:
     static SlotInfo getSlotInfo(int slot);
     static bool saveSlotMeta(int slot, const SlotInfo& info);
     static bool saveSlot(int slot, const World& world, const Player& player,
-                         const std::string& name, WorldSize size, unsigned int seed);
-    static bool loadSlot(int slot, World& world, Player& player);
+                         const std::string& name, WorldSize size, unsigned int seed, float dayTime = 0.0f);
+    static bool loadSlot(int slot, World& world, Player& player, float& dayTime);
     static void deleteSlot(int slot);
 
     static std::array<SlotInfo, SLOT_COUNT> listSlots();
 
-    static bool save(const World& world, const Player& player, const std::string& filepath);
-    static bool load(World& world, Player& player, const std::string& filepath);
+    static bool save(const World& world, const Player& player, const std::string& filepath, float dayTime = 0.0f);
+    static bool load(World& world, Player& player, const std::string& filepath, float& dayTime);
     static bool saveExists(const std::string& filepath);
 };

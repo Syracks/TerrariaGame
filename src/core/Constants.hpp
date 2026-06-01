@@ -30,8 +30,8 @@ inline WorldDimensions getWorldDimensions(WorldSize size) {
         case WorldSize::Small:   return {1024, 256};
         case WorldSize::Medium:  return {2048, 400};
         case WorldSize::Large:   return {4096, 600};
+        default:                 return {2048, 400};
     }
-    return {2048, 400};
 }
 
 inline const char* worldSizeName(WorldSize size) {
@@ -39,6 +39,6 @@ inline const char* worldSizeName(WorldSize size) {
         case WorldSize::Small:   return "Small";
         case WorldSize::Medium:  return "Medium";
         case WorldSize::Large:   return "Large";
+        default:                 return "Medium";
     }
-    return "Medium";
 }

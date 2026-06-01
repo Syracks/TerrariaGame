@@ -16,10 +16,10 @@ namespace {
     constexpr int WALK_X[] = {69, 325, 581, 838, 1093};
     constexpr int WALK_W[] = {104, 105, 105, 103, 105};
 
-    constexpr int JUMP_Y = 35;
-    constexpr int JUMP_H = 200;
-    constexpr int JUMP_X[] = {67, 330, 580, 836, 1092};
-    constexpr int JUMP_W[] = {134, 126, 138, 157, 139};
+    constexpr int JUMP_Y = 157;
+    constexpr int JUMP_H = 201;
+    constexpr int JUMP_X[] = {1029, 0, 0, 0, 0};
+    constexpr int JUMP_W[] = {133, 0, 0, 0, 0};
 
     constexpr float SWING_ARC = 120.0f;
     constexpr float SWING_START_ANGLE = -60.0f;
@@ -54,7 +54,7 @@ void Player::buildWalkFrames() {
 }
 
 void Player::buildJumpFrames() {
-    const int jumpRows[] = {35, 289, 514, 804, 1062};
+    const int jumpRows[] = {JUMP_Y, 289, 514, 804, 1062};
     for (int row = 0; row < ANIM_ROWS; ++row) {
         int y = jumpRows[row];
         for (int col = 0; col < ANIM_COLS; ++col) {
@@ -159,7 +159,7 @@ void Player::update(float dt) {
             m_currentFrame = 0;
             m_frameTimer = 0.0f;
         }
-        advanceAnimation(dt, 5);
+        advanceAnimation(dt, 1);
     } else if (std::abs(m_velocity.x) > 1.0f) {
         if (m_animState != AnimState::Walk) {
             m_animState = AnimState::Walk;
@@ -205,7 +205,7 @@ void Player::render() const {
     switch (m_animState) {
         case AnimState::Walk:
             if (m_walkTex.id > 0) {
-                tex = const_cast<Texture2D*>(&m_walkTex);
+                tex = &m_walkTex;
                 const auto& f = m_walkFrames[m_currentFrame];
                 src = {static_cast<float>(f.x), static_cast<float>(f.y),
                        static_cast<float>(f.w), static_cast<float>(f.h)};
@@ -213,7 +213,7 @@ void Player::render() const {
             break;
         case AnimState::Jump:
             if (m_jumpTex.id > 0) {
-                tex = const_cast<Texture2D*>(&m_jumpTex);
+                tex = &m_jumpTex;
                 const auto& f = m_jumpFrames[m_currentFrame];
                 src = {static_cast<float>(f.x), static_cast<float>(f.y),
                        static_cast<float>(f.w), static_cast<float>(f.h)};
@@ -221,7 +221,7 @@ void Player::render() const {
             break;
         case AnimState::Idle:
             if (m_idleTex.id > 0) {
-                tex = const_cast<Texture2D*>(&m_idleTex);
+                tex = &m_idleTex;
                 src = {0, 0, static_cast<float>(m_idleTex.width),
                        static_cast<float>(m_idleTex.height)};
             }

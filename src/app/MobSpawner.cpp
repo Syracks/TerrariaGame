@@ -9,7 +9,7 @@ namespace {
     constexpr float DAY_LENGTH = 300.0f;
     constexpr float NIGHT_LENGTH = 120.0f;
     constexpr float CYCLE_LENGTH = DAY_LENGTH + NIGHT_LENGTH;
-    constexpr float NIGHT_START = DAY_LENGTH / CYCLE_LENGTH;
+    constexpr float NIGHT_START = 0.5f;
     constexpr int ZOMBIE_SPAWN_INTERVAL = 8;
 
     bool isSolidForSpawn(const World& world, int x, int y) {

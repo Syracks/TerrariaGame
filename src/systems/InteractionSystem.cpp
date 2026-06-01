@@ -47,7 +47,7 @@ void InteractionSystem::handleMinePress(Player& player, const World& world,
     auto* sel = player.getInventory().getSelectedSlot();
     TileId held = (sel && sel->count > 0) ? sel->tileId : TileId::Air;
 
-    if (isSword_(held)) {
+    if (isSword(held)) {
         player.startSwing();
         SoundManager::instance().play(SoundManager::SwordSwing);
         return;
@@ -67,7 +67,7 @@ void InteractionSystem::handleMinePress(Player& player, const World& world,
             player.setMiningTarget(tx, ty);
             player.startSwing(mineTime);
         }
-    } else if ((isPickaxe(held) || isHammer(held)) && world.getWall(tx, ty) != TileId::Air) {
+    } else if (isHammer(held) && world.getWall(tx, ty) != TileId::Air) {
         player.setMiningTarget(tx, ty);
         player.startSwing(0.15f);
     }
@@ -103,7 +103,7 @@ void InteractionSystem::handleSwingCompletion(Player& player, World& world,
             }
         } else {
             TileId wall = world.getWall(tx, ty);
-            if (wall != TileId::Air && (isPickaxe(held) || isHammer(held))) {
+            if (wall != TileId::Air && isHammer(held)) {
                 world.setWall(tx, ty, TileId::Air);
                 player.getInventory().addItem(wall, 1);
                 SoundManager::instance().play(SoundManager::PickaxeMine);
@@ -170,15 +170,50 @@ void InteractionSystem::handlePlacePress(Player& player, World& world,
             }
         }
     } else if (isWallItem(sel->tileId)) {
-        if (world.isInBounds(tx, ty) && world.getTile(tx, ty) == TileId::Air) {
+        if (world.isInBounds(tx, ty)) {
             if (world.getWall(tx, ty) == TileId::Air &&
-                (hasAdjacentSolidForInteraction(world, tx, ty) || hasAdjacentWall(world, tx, ty))) {
+                (hasAdjacentSolidForInteraction(world, tx, ty) || hasAdjacentWall(world, tx, ty) ||
+                 world.getTile(tx, ty) != TileId::Air)) {
                 world.setWall(tx, ty, sel->tileId);
                 player.getInventory().removeItem(sel->tileId, 1);
                 SoundManager::instance().play(SoundManager::BlockPlace);
                 minimap.markDirty();
             }
         }
+    } else if (sel->tileId == TileId::WoodenTable) {
+        if (world.isInBounds(tx, ty) && world.getTile(tx, ty) == TileId::Air &&
+            world.isInBounds(tx+1, ty) && world.getTile(tx+1, ty) == TileId::Air &&
+            world.isInBounds(tx, ty+1) && world.getTile(tx, ty+1) == TileId::Air &&
+            world.isInBounds(tx+1, ty+1) && world.getTile(tx+1, ty+1) == TileId::Air) {
+            Rectangle playerRect = player.getBounds();
+            Rectangle tableRect = {
+                math::tileToWorldX(tx), math::tileToWorldY(ty),
+                static_cast<float>(constants::TILE_SIZE) * 2, static_cast<float>(constants::TILE_SIZE) * 2
+            };
+            if (!CheckCollisionRecs(playerRect, tableRect)) {
+                bool hasAdj = false;
+                for (int dx = -1; dx <= 2 && !hasAdj; ++dx) {
+                    for (int dy = -1; dy <= 2 && !hasAdj; ++dy) {
+                        if ((dx == -1 || dx == 2 || dy == -1 || dy == 2) &&
+                            world.isInBounds(tx + dx, ty + dy)) {
+                            TileId nid = world.getTile(tx + dx, ty + dy);
+                            if (nid != TileId::Air && TileRegistry::instance().get(nid).solid)
+                                hasAdj = true;
+                        }
+                    }
+                }
+                if (hasAdj) {
+                    world.setTile(tx, ty, TileId::WoodenTable);
+                    world.setTile(tx+1, ty, TileId::WoodenTable);
+                    world.setTile(tx, ty+1, TileId::WoodenTable);
+                    world.setTile(tx+1, ty+1, TileId::WoodenTable);
+                    player.getInventory().removeItem(TileId::WoodenTable, 1);
+                    SoundManager::instance().play(SoundManager::BlockPlace);
+                    minimap.markDirty();
+                }
+            }
+        }
+        return;
     } else if (sel->tileId == TileId::Workbench ||
                sel->tileId == TileId::Furnace ||
                sel->tileId == TileId::Anvil ||

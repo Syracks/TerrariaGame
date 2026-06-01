@@ -65,7 +65,10 @@ TileRegistry::TileRegistry() {
 }
 
 const TileDefinition& TileRegistry::get(TileId id) const {
-    return m_tiles.at(id);
+    static TileDefinition fallback{TileId::Air, "Unknown", false, 0, BLANK};
+    auto it = m_tiles.find(id);
+    if (it == m_tiles.end()) return fallback;
+    return it->second;
 }
 
 TileId TileRegistry::getIdByName(const std::string& name) const {

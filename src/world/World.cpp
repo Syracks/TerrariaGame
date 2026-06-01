@@ -177,6 +177,12 @@ void World::getChunksWithLiquid(std::vector<Chunk*>& outChunks) {
             outChunks.push_back(chunk.get());
         }
     }
+    std::sort(outChunks.begin(), outChunks.end(),
+              [](const Chunk* a, const Chunk* b) {
+                  if (a->getChunkY() != b->getChunkY())
+                      return a->getChunkY() < b->getChunkY();
+                  return a->getChunkX() < b->getChunkX();
+              });
 }
 
 Biome World::getBiome(int tileX) const {

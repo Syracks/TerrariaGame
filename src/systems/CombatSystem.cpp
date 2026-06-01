@@ -14,7 +14,7 @@ void CombatSystem::checkSwordHit(Player& player,
 
     auto* sel = player.getInventory().getSelectedSlot();
     TileId held = (sel && sel->count > 0) ? sel->tileId : TileId::Air;
-    if (!isSword_(held)) return;
+    if (!isSword(held)) return;
 
     Rectangle hitbox = player.getSwingHitbox();
     if (hitbox.width <= 0 || hitbox.height <= 0) return;

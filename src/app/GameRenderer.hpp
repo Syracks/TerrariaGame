@@ -32,6 +32,8 @@ private:
     void renderHUD(GameSession& session);
     void renderMinimap(GameSession& session);
     void renderDeathOverlay(float deathTimer);
+    void renderNightOverlay(float dayTime);
+    static float getNightAmount(float dayTime);
 
     Texture2D loadBackground(const char* path);
     void unloadBackground(Texture2D& tex);

@@ -63,6 +63,7 @@ private:
     void generateOceans();
     void generateWaterPools();
     void generateLavaPools();
+    void postProcess();
 
     bool isSolidBelow(int tileX, int tileY) const;
     bool isReplaceableForCave(TileId id) const;

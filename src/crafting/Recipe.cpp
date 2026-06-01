@@ -6,6 +6,7 @@ const std::vector<Recipe>& RecipeDatabase::getAll() {
     static const std::vector<Recipe> recipes = {
         {TileId::Torch, 3, {{TileId::Wood, 1}}, None},
         {TileId::Torch, 5, {{TileId::Wood, 1}, {TileId::Gel, 1}}, None},
+        {TileId::Planks, 1, {{TileId::Wood, 1}}, None},
         {TileId::DirtWall, 4, {{TileId::Dirt, 1}}, None},
         {TileId::StoneWall, 4, {{TileId::Stone, 1}}, None},
         {TileId::PlanksWall, 4, {{TileId::Planks, 1}}, None},
@@ -17,6 +18,7 @@ const std::vector<Recipe>& RecipeDatabase::getAll() {
         {TileId::ChestBlock, 1, {{TileId::Planks, 8}, {TileId::IronBar, 2}}, Workbench},
         {TileId::Wood, 2, {{TileId::Planks, 1}}, Workbench},
         {TileId::PlanksWall, 8, {{TileId::Planks, 1}}, Workbench},
+        {TileId::WoodWall, 4, {{TileId::Wood, 1}}, None},
         {TileId::Pickaxe, 1, {{TileId::Wood, 6}, {TileId::Stone, 4}}, Workbench},
         {TileId::Axe, 1, {{TileId::Wood, 6}, {TileId::Stone, 4}}, Workbench},
         {TileId::Sword, 1, {{TileId::Wood, 5}, {TileId::Stone, 3}}, Workbench},

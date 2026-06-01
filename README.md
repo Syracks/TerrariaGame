@@ -18,7 +18,7 @@ Raylib se stáhne automaticky přes FetchContent.
 - Pohyb hráče (A/D/šipky, skok Space)
 - Těžení a pokládání bloků
 - Těžení zdí (kladivem)
-- Inventář (20 slotů, 8 v hotbaru, výběr 1–8)
+- Inventář (45 slotů, 9 v hotbaru, výběr 1–9)
 - Crafting ze surovin (v ruce, u pracovního stolu, pece, kovadliny)
 - Denní/noční cyklus s dynamickým osvětlením
 - Minimapa
@@ -60,8 +60,9 @@ Raylib se stáhne automaticky přes FetchContent.
 | Space | skok (držení = auto-jump) |
 | Levé tlačítko myši | těžení / útok |
 | Pravé tlačítko myši | položení bloku / otevření dveří |
-| 1–8 | výběr slotu hotbaru |
+| 1–9 | výběr slotu hotbaru |
 | F5 | uložit hru |
+| F9 | načíst hru |
 | Esc | pauza / inventář |
 | M | přepnutí minimapy |
 

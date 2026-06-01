@@ -45,7 +45,7 @@ inline bool isMinimapToggled() {
 }
 
 inline int getHotbarSelection() {
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i < constants::HOTBAR_SLOTS; ++i) {
         if (IsKeyPressed(static_cast<int>(KEY_ONE) + i))
             return i;
     }
