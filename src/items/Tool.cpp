@@ -54,6 +54,7 @@ void fellTree(World& world, int tileX, int tileY, Inventory& inventory) {
     stack.push_back({tileX, tileY});
 
     int woodCount = 0;
+    int cactusCount = 0;
 
     while (!stack.empty()) {
         auto [x, y] = stack.back();
@@ -63,7 +64,7 @@ void fellTree(World& world, int tileX, int tileY, Inventory& inventory) {
             continue;
 
         TileId t = world.getTile(x, y);
-        if (!isTreeTile(t))
+        if (!isTreeTile(t) && t != TileId::Cactus)
             continue;
 
         bool already = false;
@@ -80,12 +81,18 @@ void fellTree(World& world, int tileX, int tileY, Inventory& inventory) {
 
         if (t == TileId::Wood)
             woodCount++;
+        else if (t == TileId::Cactus)
+            cactusCount++;
 
-        stack.push_back({x, y - 1});
-        stack.push_back({x - 1, y});
-        stack.push_back({x + 1, y});
-        if (t == TileId::Leaf)
-            stack.push_back({x, y + 1});
+        if (t == TileId::Cactus) {
+            stack.push_back({x, y - 1});
+        } else {
+            stack.push_back({x, y - 1});
+            stack.push_back({x - 1, y});
+            stack.push_back({x + 1, y});
+            if (t == TileId::Leaf)
+                stack.push_back({x, y + 1});
+        }
     }
 
     for (auto& p : visited)
@@ -93,4 +100,6 @@ void fellTree(World& world, int tileX, int tileY, Inventory& inventory) {
 
     if (woodCount > 0)
         inventory.addItem(TileId::Planks, woodCount * 4);
+    if (cactusCount > 0)
+        inventory.addItem(TileId::Cactus, cactusCount);
 }

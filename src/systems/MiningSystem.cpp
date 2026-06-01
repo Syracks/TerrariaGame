@@ -47,11 +47,8 @@ void MiningSystem::tryMineTile(World& world, Player& player, int tileX, int tile
     if (!isTool(heldId)) return;
 
     if (isAxe(heldId)) {
-        if (isTreeTile(tile)) {
+        if (isTreeTile(tile) || tile == TileId::Cactus) {
             fellTree(world, tileX, tileY, player.getInventory());
-        } else if (tile == TileId::Cactus) {
-            world.setTile(tileX, tileY, TileId::Air);
-            player.getInventory().addItem(tile, 1);
         } else {
             return;
         }
