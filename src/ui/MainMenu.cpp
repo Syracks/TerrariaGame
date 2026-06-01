@@ -30,6 +30,7 @@ void MainMenu::reset() {
     m_difficultyIndex = 0;
     m_selectedSlot = -1;
     m_confirmDeleteSlot = -1;
+    m_confirmOverwriteSlot = -1;
 }
 
 void MainMenu::refreshSlots() {
@@ -209,28 +210,63 @@ MenuResult MainMenu::update() {
                 m_editingName = false;
             }
         }
-        if (isClicked(createRect)) {
+        if (isClicked(createRect) && m_confirmOverwriteSlot < 0) {
             m_selectedOption = 3;
             m_editingName = false;
             if (m_worldName.empty()) m_worldName = "World";
-            int freeSlot = -1;
             refreshSlots();
+            int freeSlot = -1;
             for (int i = 0; i < SaveManager::SLOT_COUNT; ++i) {
                 if (!m_slots[i].occupied) { freeSlot = i; break; }
             }
-            if (freeSlot < 0) freeSlot = 0;
-            result.type = MenuResult::StartNewGame;
-            result.slot = freeSlot;
-            result.worldName = m_worldName;
-            switch (m_worldSizeIndex) {
-                case 0: result.worldSize = WorldSize::Small; break;
-                case 1: result.worldSize = WorldSize::Medium; break;
-                case 2: result.worldSize = WorldSize::Large; break;
+            if (freeSlot >= 0) {
+                result.type = MenuResult::StartNewGame;
+                result.slot = freeSlot;
+                result.worldName = m_worldName;
+                switch (m_worldSizeIndex) {
+                    case 0: result.worldSize = WorldSize::Small; break;
+                    case 1: result.worldSize = WorldSize::Medium; break;
+                    case 2: result.worldSize = WorldSize::Large; break;
+                }
+                result.difficulty = (m_difficultyIndex == 1) ? Difficulty::Hardcore : Difficulty::Normal;
+                reset();
+                return result;
+            } else {
+                m_confirmOverwriteSlot = 0;
             }
-            result.difficulty = (m_difficultyIndex == 1) ? Difficulty::Hardcore : Difficulty::Normal;
-            reset();
+        }
+
+        if (m_confirmOverwriteSlot >= 0) {
+            int slot = m_confirmOverwriteSlot;
+            int dialogW = 420;
+            int dialogH = 180;
+            int dialogX = (constants::SCREEN_WIDTH - dialogW) / 2;
+            int dialogY = (constants::SCREEN_HEIGHT - dialogH) / 2;
+            Rectangle yesRect = {static_cast<float>(dialogX + 60), static_cast<float>(dialogY + 120), 120.0f, 40.0f};
+            Rectangle noRect = {static_cast<float>(dialogX + dialogW - 180), static_cast<float>(dialogY + 120), 120.0f, 40.0f};
+
+            if (isClicked(yesRect)) {
+                result.type = MenuResult::StartNewGame;
+                result.slot = slot;
+                result.worldName = m_worldName.empty() ? "World" : m_worldName;
+                switch (m_worldSizeIndex) {
+                    case 0: result.worldSize = WorldSize::Small; break;
+                    case 1: result.worldSize = WorldSize::Medium; break;
+                    case 2: result.worldSize = WorldSize::Large; break;
+                }
+                result.difficulty = (m_difficultyIndex == 1) ? Difficulty::Hardcore : Difficulty::Normal;
+                m_confirmOverwriteSlot = -1;
+                reset();
+                return result;
+            } else if (isClicked(noRect)) {
+                m_confirmOverwriteSlot = -1;
+            } else if (IsKeyPressed(KEY_ESCAPE)) {
+                m_confirmOverwriteSlot = -1;
+            }
+            result.type = MenuResult::None;
             return result;
         }
+
         if (isClicked(backRect)) {
             m_editingName = false;
             m_screen = Screen::Main;
@@ -522,6 +558,43 @@ void MainMenu::render() const {
         const char* backText = "Back";
         DrawText(backText, backX + (backW - MeasureText(backText, 22)) / 2,
                  yPos + 7, 22, (m_selectedOption == 4) ? WHITE : GRAY);
+
+        if (m_confirmOverwriteSlot >= 0) {
+            int slot = m_confirmOverwriteSlot;
+            int dialogW = 420;
+            int dialogH = 180;
+            int dialogX = (constants::SCREEN_WIDTH - dialogW) / 2;
+            int dialogY = (constants::SCREEN_HEIGHT - dialogH) / 2;
+
+            DrawRectangle(0, 0, constants::SCREEN_WIDTH, constants::SCREEN_HEIGHT, Color{0, 0, 0, 160});
+            DrawRectangle(dialogX, dialogY, dialogW, dialogH, Color{30, 30, 40, 255});
+            DrawRectangleLines(dialogX, dialogY, dialogW, dialogH, Color{180, 120, 40, 255});
+
+            const char* msg = "Slot is occupied! Overwrite?";
+            int msgW = MeasureText(msg, 22);
+            DrawText(msg, dialogX + (dialogW - msgW) / 2, dialogY + 24, 22, WHITE);
+
+            const SlotInfo& si = m_slots[slot];
+            std::string info = si.name + " (" + worldSizeName(si.size) + " - " + difficultyName(si.difficulty) + ")";
+            int infoW = MeasureText(info.c_str(), 18);
+            DrawText(info.c_str(), dialogX + (dialogW - infoW) / 2, dialogY + 56, 18, Color{180, 180, 180, 255});
+
+            std::string newInfo = "New: " + m_worldName + " (" + worldSizeText(m_worldSizeIndex) + " - " + difficultyText(m_difficultyIndex) + ")";
+            int newInfoW = MeasureText(newInfo.c_str(), 16);
+            DrawText(newInfo.c_str(), dialogX + (dialogW - newInfoW) / 2, dialogY + 82, 16, Color{140, 140, 160, 255});
+
+            Rectangle yesRect = {static_cast<float>(dialogX + 60), static_cast<float>(dialogY + 120), 120.0f, 40.0f};
+            Rectangle noRect = {static_cast<float>(dialogX + dialogW - 180), static_cast<float>(dialogY + 120), 120.0f, 40.0f};
+
+            bool yesHov = CheckCollisionPointRec(math::getVirtualMouse(), yesRect);
+            bool noHov = CheckCollisionPointRec(math::getVirtualMouse(), noRect);
+            DrawRectangleRec(yesRect, yesHov ? Color{180, 80, 40, 255} : Color{140, 60, 30, 255});
+            DrawRectangleLinesEx(yesRect, 1, yesHov ? Color{255, 150, 50, 255} : Color{200, 100, 40, 255});
+            DrawText("Overwrite", yesRect.x + (120 - MeasureText("Overwrite", 20)) / 2, yesRect.y + 10, 20, WHITE);
+            DrawRectangleRec(noRect, noHov ? Color{50, 50, 60, 255} : Color{35, 35, 45, 255});
+            DrawRectangleLinesEx(noRect, 1, noHov ? WHITE : Color{80, 80, 100, 255});
+            DrawText("Cancel", noRect.x + (120 - MeasureText("Cancel", 20)) / 2, noRect.y + 10, 20, WHITE);
+        }
 
         return;
     }
