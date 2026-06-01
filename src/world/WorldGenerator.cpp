@@ -111,6 +111,8 @@ static float baseHeightForBiome(Biome biome) {
         case Biome::Snow:   return 0.30f;
         case Biome::Plains: return 0.32f;
         case Biome::Jungle: return 0.34f;
+        case Biome::Ocean:  return 0.38f;
+        case Biome::Beach:  return 0.32f;
         default:            return 0.32f;
     }
 }
@@ -403,6 +405,12 @@ void WorldGenerator::repairSurfaceLayer() {
                 upperFill = TileId::Mud;
                 lowerFill = TileId::Mud;
                 break;
+            case Biome::Ocean:
+            case Biome::Beach:
+                surfaceTile = TileId::Sand;
+                upperFill = TileId::Sand;
+                lowerFill = TileId::Sand;
+                break;
 
             default:
                 surfaceTile = TileId::Grass;
@@ -441,22 +449,24 @@ void WorldGenerator::generate(ProgressCallback progress) {
     if (progress) progress(0.10f);
 
     generateTerrain();
-    if (progress) progress(0.25f);
-
-    generateCaves();
-    if (progress) progress(0.35f);
-
-    generateWormCaves();
-    if (progress) progress(0.42f);
+    if (progress) progress(0.20f);
 
     generateOceans();
-    if (progress) progress(0.48f);
+    repairOceanTransitions();
+    m_world.setBiomeData(m_biomeMap, m_surfaceHeight);
+    if (progress) progress(0.30f);
 
     repairSurfaceLayer();
-    if (progress) progress(0.55f);
+    if (progress) progress(0.38f);
+
+    generateCaves();
+    if (progress) progress(0.48f);
+
+    generateWormCaves();
+    if (progress) progress(0.54f);
 
     generateUndergroundCabins();
-    if (progress) progress(0.63f);
+    if (progress) progress(0.62f);
 
     generateOreVeins();
     if (progress) progress(0.70f);
@@ -474,7 +484,7 @@ void WorldGenerator::generate(ProgressCallback progress) {
     if (progress) progress(0.93f);
 
     generateTrees();
-    if (progress) progress(0.95f);
+    if (progress) progress(0.96f);
 
     postProcess();
     if (progress) progress(1.0f);
@@ -505,6 +515,8 @@ void WorldGenerator::generateTerrain() {
                     case Biome::Snow:     fill = TileId::SnowBlock; break;
                     case Biome::Desert:   fill = TileId::Sand; break;
                     case Biome::Jungle:   fill = TileId::JungleGrass; break;
+                    case Biome::Ocean:
+                    case Biome::Beach:    fill = TileId::Sand; break;
                     default:              fill = TileId::Grass; break;
                 }
                 if (isNearBiomeEdge(tileX, 6) && m_rng.range(0, 4) == 0) {
@@ -529,7 +541,8 @@ void WorldGenerator::generateTerrain() {
             float n = m_noise.octaveNoise(tileX * 0.020f, tileY * 0.025f, 2, 0.5f, 1.0f);
 
             if (depth <= 3) {
-                if (biome == Biome::Desert)      fill = TileId::Sand;
+                if (biome == Biome::Desert || biome == Biome::Ocean || biome == Biome::Beach)
+                    fill = TileId::Sand;
                 else if (biome == Biome::Snow)   fill = TileId::SnowBlock;
                 else if (biome == Biome::Jungle) fill = TileId::Mud;
                 else                             fill = TileId::Dirt;
@@ -537,7 +550,8 @@ void WorldGenerator::generateTerrain() {
                 float t = static_cast<float>(depth - 3) / 32.0f;
                 t = std::clamp(t + n * 0.15f, 0.0f, 1.0f);
                 if (t < 0.55f) {
-                    if (biome == Biome::Desert)      fill = TileId::Sand;
+                    if (biome == Biome::Desert || biome == Biome::Ocean || biome == Biome::Beach)
+                        fill = TileId::Sand;
                     else if (biome == Biome::Jungle) fill = TileId::Mud;
                     else if (biome == Biome::Snow && depth < 6) fill = TileId::SnowBlock;
                     else                             fill = TileId::Dirt;
@@ -754,7 +768,7 @@ void WorldGenerator::generateTrees() {
             int trunkHeight = 9 + m_rng.range(0, 5);
             int canopyRadius = 3 + m_rng.range(0, 2);
             bool blocked = false;
-            for (int dy = 1; dy <= trunkHeight + 3; ++dy) {
+            for (int dy = 1; dy <= trunkHeight + canopyRadius + 1; ++dy) {
                 int y = surfaceY - dy;
                 if (y < 0 || m_world.getTile(tileX, y) != TileId::Air) {
                     blocked = true;
@@ -767,7 +781,7 @@ void WorldGenerator::generateTrees() {
                     int lx = tileX + dx;
                     int ly = surfaceY - trunkHeight + dy;
                     if (lx >= 0 && lx < constants::WORLD_WIDTH && ly >= 0) {
-                        if (m_world.getTile(lx, ly) == TileId::Leaf) {
+                        if (m_world.getTile(lx, ly) != TileId::Air) {
                             blocked = true;
                             break;
                         }
@@ -800,7 +814,7 @@ void WorldGenerator::generateTrees() {
         }
         int trunkHeight = 7 + m_rng.range(0, 4);
         bool blocked = false;
-        for (int dy = 1; dy <= trunkHeight + 2; ++dy) {
+        for (int dy = 1; dy <= trunkHeight + 4; ++dy) {
             int y = surfaceY - dy;
             if (y < 0 || m_world.getTile(tileX, y) != TileId::Air) {
                 blocked = true;
@@ -813,7 +827,7 @@ void WorldGenerator::generateTrees() {
                 int lx = tileX + dx;
                 int ly = surfaceY - trunkHeight + dy;
                 if (lx >= 0 && lx < constants::WORLD_WIDTH && ly >= 0) {
-                    if (m_world.getTile(lx, ly) == TileId::Leaf) {
+                    if (m_world.getTile(lx, ly) != TileId::Air) {
                         blocked = true;
                         break;
                     }
@@ -841,8 +855,8 @@ void WorldGenerator::generateTrees() {
                     }
                 }
             }
-            lastTreeX = tileX;
         }
+        lastTreeX = tileX;
     }
 }
 
@@ -900,7 +914,7 @@ void WorldGenerator::postProcess() {
         for (int y = m_surfaceHeight[x] - 5; y < m_surfaceHeight[x]; ++y) {
             if (y >= 0) {
                 TileId t = m_world.getTile(x, y);
-                if (t != TileId::Air) {
+                if (t != TileId::Air && t != TileId::Wood && t != TileId::Leaf) {
                     m_world.setTile(x, y, TileId::Air);
                 }
             }
@@ -1052,6 +1066,8 @@ void WorldGenerator::generateOceans() {
             surfaceY = std::clamp(surfaceY, 3, constants::WORLD_HEIGHT - 10);
             m_surfaceHeight[tileX] = surfaceY;
 
+            m_biomeMap[tileX] = (x < 45) ? Biome::Ocean : Biome::Beach;
+
             for (int y = 0; y < surfaceY; ++y) {
                 if (m_world.isInBounds(tileX, y)) {
                     m_world.setTile(tileX, y, TileId::Air);
@@ -1088,24 +1104,80 @@ void WorldGenerator::generateOceans() {
     }
 }
 
+void WorldGenerator::repairOceanTransitions() {
+    int oceanWidth = 72;
+
+    for (int side = 0; side < 2; ++side) {
+        for (int x = 0; x < oceanWidth; ++x) {
+            int tileX = (side == 0) ? x : constants::WORLD_WIDTH - 1 - x;
+            if (tileX < 0 || tileX >= constants::WORLD_WIDTH) continue;
+
+            int surfaceY = m_surfaceHeight[tileX];
+            int nextTileX = (side == 0) ? tileX + 1 : tileX - 1;
+            if (nextTileX < 0 || nextTileX >= constants::WORLD_WIDTH) continue;
+
+            int nextSurfaceY = m_surfaceHeight[nextTileX];
+            int diff = nextSurfaceY - surfaceY;
+
+            if (std::abs(diff) > 3) {
+                m_surfaceHeight[tileX] = surfaceY + diff / 2;
+            }
+
+            if (m_world.getTile(tileX, surfaceY) != TileId::Sand) {
+                m_world.setTile(tileX, surfaceY, TileId::Sand);
+                for (int y = surfaceY + 1; y <= surfaceY + 4 && y < constants::WORLD_HEIGHT; ++y) {
+                    TileId t = m_world.getTile(tileX, y);
+                    if (t == TileId::Air) m_world.setTile(tileX, y, TileId::Sand);
+                }
+            }
+        }
+
+        for (int pass = 0; pass < 2; ++pass) {
+            std::vector<int> smoothed(constants::WORLD_WIDTH);
+            for (int x = 0; x < oceanWidth; ++x) {
+                int tileX = (side == 0) ? x : constants::WORLD_WIDTH - 1 - x;
+                if (tileX < 0 || tileX >= constants::WORLD_WIDTH) continue;
+                int sum = 0, count = 0;
+                for (int dx = -1; dx <= 1; ++dx) {
+                    int tx = tileX + dx;
+                    if (tx >= 0 && tx < constants::WORLD_WIDTH) {
+                        sum += m_surfaceHeight[tx];
+                        ++count;
+                    }
+                }
+                if (count > 0) smoothed[tileX] = sum / count;
+            }
+            for (int x = 0; x < oceanWidth; ++x) {
+                int tileX = (side == 0) ? x : constants::WORLD_WIDTH - 1 - x;
+                if (tileX >= 0 && tileX < constants::WORLD_WIDTH)
+                    m_surfaceHeight[tileX] = smoothed[tileX];
+            }
+        }
+    }
+}
+
 void WorldGenerator::generateWaterPools() {
+    int spawnX = constants::WORLD_WIDTH / 2;
     int poolCount = constants::WORLD_WIDTH / 15;
 
     for (int i = 0; i < poolCount; ++i) {
-        int cx = m_rng.range(10, constants::WORLD_WIDTH - 10);
+        int cx = m_rng.range(20, constants::WORLD_WIDTH - 20);
         int surfaceY = m_surfaceHeight[cx];
-        int cy = surfaceY + 15 + m_rng.range(0, constants::WORLD_HEIGHT - surfaceY - 40);
+        int depth = 18 + m_rng.range(0, constants::WORLD_HEIGHT - surfaceY - 45);
+        int cy = surfaceY + depth;
         if (cy >= constants::WORLD_HEIGHT - 30) continue;
 
-        TileId center = m_world.getTile(cx, cy);
-        if (center == TileId::Air) continue;
+        if (std::abs(cx - spawnX) < SPAWN_SAFE_RADIUS) continue;
 
-        int poolW = 3 + m_rng.range(0, 4);
+        TileId center = m_world.getTile(cx, cy);
+        if (center != TileId::Stone && center != TileId::Dirt) continue;
+
+        int poolW = 3 + m_rng.range(0, 5);
         int poolH = 1 + m_rng.range(0, 3);
         bool valid = true;
 
-        for (int dy = -poolH; dy <= 0 && valid; ++dy) {
-            for (int dx = -poolW; dx <= poolW && valid; ++dx) {
+        for (int dy = -poolH - 1; dy <= 1 && valid; ++dy) {
+            for (int dx = -poolW - 1; dx <= poolW + 1 && valid; ++dx) {
                 int tx = cx + dx;
                 int ty = cy + dy;
                 if (!m_world.isInBounds(tx, ty)) { valid = false; break; }
@@ -1117,18 +1189,21 @@ void WorldGenerator::generateWaterPools() {
         }
         if (!valid) continue;
 
-        for (int dy = -poolH; dy <= 0; ++dy) {
-            for (int dx = -poolW; dx <= poolW; ++dx) {
+        for (int dy = -poolH - 1; dy <= 1; ++dy) {
+            for (int dx = -poolW - 1; dx <= poolW + 1; ++dx) {
+                float nx = static_cast<float>(dx) / static_cast<float>(poolW + 1);
+                float ny = static_cast<float>(dy) / static_cast<float>(poolH + 1);
+                float dist = nx * nx + ny * ny;
+                if (dist > 1.0f) continue;
+                if (dist > 0.7f && m_rng.range(0, 2) == 0) continue;
+
                 int tx = cx + dx;
                 int ty = cy + dy;
-                float dist = std::sqrt(static_cast<float>(dx * dx + dy * dy));
-                if (dist > poolW + 0.5f) continue;
-                if (dist > poolW - 1.0f && m_rng.range(0, 2) == 0) continue;
-                if (m_world.isInBounds(tx, ty)) {
-                    m_world.setTile(tx, ty, TileId::Air);
-                    if (dy >= -1) {
-                        m_world.setWater(tx, ty, MAX_LIQUID_LEVEL);
-                    }
+                if (!m_world.isInBounds(tx, ty)) continue;
+
+                m_world.setTile(tx, ty, TileId::Air);
+                if (dy >= -poolH / 2) {
+                    m_world.setWater(tx, ty, MAX_LIQUID_LEVEL);
                 }
             }
         }

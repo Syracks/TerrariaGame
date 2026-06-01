@@ -1,5 +1,6 @@
 #include "MainMenu.hpp"
 #include "core/Constants.hpp"
+#include "core/Math.hpp"
 #include <algorithm>
 #include <cctype>
 
@@ -43,12 +44,12 @@ const char* MainMenu::worldSizeText(int index) {
 
 static bool isClicked(Rectangle rect) {
     if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) return false;
-    Vector2 mp = GetMousePosition();
+    Vector2 mp = math::getVirtualMouse();
     return CheckCollisionPointRec(mp, rect);
 }
 
 static bool isHovered(Rectangle rect) {
-    Vector2 mp = GetMousePosition();
+    Vector2 mp = math::getVirtualMouse();
     return CheckCollisionPointRec(mp, rect);
 }
 
@@ -60,7 +61,7 @@ MenuResult MainMenu::update() {
         return result;
     }
 
-    Vector2 mousePos = GetMousePosition();
+    Vector2 mousePos = math::getVirtualMouse();
     bool mouseMoved = (mousePos.x != m_lastMousePos.x || mousePos.y != m_lastMousePos.y);
     m_lastMousePos = mousePos;
 
@@ -498,7 +499,7 @@ void MainMenu::render() const {
                     static_cast<float>(slotStartX + slotW - 100),
                     static_cast<float>(yPos + 12), 80.0f, 36.0f
                 };
-                bool delHovered = CheckCollisionPointRec(GetMousePosition(), delRect);
+                bool delHovered = CheckCollisionPointRec(math::getVirtualMouse(), delRect);
                 DrawRectangleRec(delRect, delHovered ? Color{180, 40, 40, 255} : Color{120, 30, 30, 255});
                 DrawRectangleLinesEx(delRect, 1, delHovered ? Color{255, 80, 80, 255} : Color{180, 50, 50, 255});
                 const char* delText = "Delete";
@@ -544,8 +545,8 @@ void MainMenu::render() const {
             Rectangle yesRect = {static_cast<float>(dialogX + 50), static_cast<float>(dialogY + 95), 100.0f, 40.0f};
             Rectangle noRect = {static_cast<float>(dialogX + dialogW - 150), static_cast<float>(dialogY + 95), 100.0f, 40.0f};
 
-            bool yesHov = CheckCollisionPointRec(GetMousePosition(), yesRect);
-            bool noHov = CheckCollisionPointRec(GetMousePosition(), noRect);
+            bool yesHov = CheckCollisionPointRec(math::getVirtualMouse(), yesRect);
+            bool noHov = CheckCollisionPointRec(math::getVirtualMouse(), noRect);
             DrawRectangleRec(yesRect, yesHov ? Color{160, 40, 40, 255} : Color{120, 30, 30, 255});
             DrawRectangleLinesEx(yesRect, 1, yesHov ? Color{255, 80, 80, 255} : Color{180, 50, 50, 255});
             DrawText("Yes", yesRect.x + (100 - MeasureText("Yes", 22)) / 2, yesRect.y + 9, 22, WHITE);

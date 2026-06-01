@@ -2,8 +2,10 @@
 
 namespace constants {
 
-constexpr int SCREEN_WIDTH = 1280;
-constexpr int SCREEN_HEIGHT = 720;
+constexpr int VIRTUAL_WIDTH  = 1280;
+constexpr int VIRTUAL_HEIGHT = 720;
+constexpr int SCREEN_WIDTH = VIRTUAL_WIDTH;
+constexpr int SCREEN_HEIGHT = VIRTUAL_HEIGHT;
 constexpr int TILE_SIZE = 16;
 constexpr int CHUNK_SIZE = 32;
 inline int WORLD_WIDTH = 2048;

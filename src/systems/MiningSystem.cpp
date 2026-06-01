@@ -47,10 +47,14 @@ void MiningSystem::tryMineTile(World& world, Player& player, int tileX, int tile
     if (!isTool(heldId)) return;
 
     if (isAxe(heldId)) {
-        if (isTreeTile(tile))
+        if (isTreeTile(tile)) {
             fellTree(world, tileX, tileY, player.getInventory());
-        else
+        } else if (tile == TileId::Cactus) {
+            world.setTile(tileX, tileY, TileId::Air);
+            player.getInventory().addItem(tile, 1);
+        } else {
             return;
+        }
     } else if (isPickaxe(heldId)) {
         if (isTreeTile(tile)) return;
 
@@ -167,7 +171,7 @@ float MiningSystem::getMiningTime(TileId tile, TileId tool) {
 }
 
 void MiningSystem::tryPlace(World& world, Player& player, const Camera2D& camera) {
-    Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), camera);
+    Vector2 worldPos = GetScreenToWorld2D(math::getVirtualMouse(), camera);
     int tileX = math::worldToTileX(worldPos.x);
     int tileY = math::worldToTileY(worldPos.y);
 

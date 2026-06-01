@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Constants.hpp"
+#include <raylib.h>
 #include <cmath>
+#include <algorithm>
 
 namespace math {
 
@@ -27,6 +29,25 @@ inline int chunkFromTile(int tileCoord) {
 
 inline int localTileInChunk(int tileCoord) {
     return ((tileCoord % constants::CHUNK_SIZE) + constants::CHUNK_SIZE) % constants::CHUNK_SIZE;
+}
+
+inline Rectangle getScaledDestRect() {
+    float sw = static_cast<float>(GetScreenWidth());
+    float sh = static_cast<float>(GetScreenHeight());
+    float scale = std::min(sw / static_cast<float>(constants::VIRTUAL_WIDTH),
+                           sh / static_cast<float>(constants::VIRTUAL_HEIGHT));
+    float w = static_cast<float>(constants::VIRTUAL_WIDTH) * scale;
+    float h = static_cast<float>(constants::VIRTUAL_HEIGHT) * scale;
+    return { (sw - w) * 0.5f, (sh - h) * 0.5f, w, h };
+}
+
+inline Vector2 getVirtualMouse() {
+    Vector2 m = GetMousePosition();
+    Rectangle dest = getScaledDestRect();
+    return {
+        (m.x - dest.x) * static_cast<float>(constants::VIRTUAL_WIDTH) / dest.width,
+        (m.y - dest.y) * static_cast<float>(constants::VIRTUAL_HEIGHT) / dest.height
+    };
 }
 
 }

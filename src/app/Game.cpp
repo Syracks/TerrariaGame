@@ -38,9 +38,12 @@ Game::Game()
 Game::~Game() = default;
 
 void Game::init() {
-    InitWindow(constants::SCREEN_WIDTH, constants::SCREEN_HEIGHT, "Terraria");
+    InitWindow(constants::VIRTUAL_WIDTH, constants::VIRTUAL_HEIGHT, "Terraria");
     SetTargetFPS(constants::TARGET_FPS);
     SetExitKey(0);
+
+    m_target = LoadRenderTexture(constants::VIRTUAL_WIDTH, constants::VIRTUAL_HEIGHT);
+    SetTextureFilter(m_target.texture, TEXTURE_FILTER_POINT);
 
     InitAudioDevice();
     SoundManager::instance().loadAll();
@@ -64,7 +67,8 @@ void Game::run() {
             update(dt);
         }
 
-        BeginDrawing();
+        BeginTextureMode(m_target);
+        ClearBackground(Color{20, 20, 30, 255});
 
         if (m_state == GameState::MainMenu) {
             m_renderer.renderMainMenu(m_menu);
@@ -79,13 +83,46 @@ void Game::run() {
             }
         }
 
+        EndTextureMode();
+
+        BeginDrawing();
+        ClearBackground(BLACK);
+
+        Rectangle dest = math::getScaledDestRect();
+        DrawTexturePro(
+            m_target.texture,
+            { 0.0f, 0.0f,
+              static_cast<float>(m_target.texture.width),
+              static_cast<float>(-m_target.texture.height) },
+            dest,
+            { 0.0f, 0.0f },
+            0.0f,
+            WHITE
+        );
+
         EndDrawing();
     }
 
     cleanup();
 }
 
+void Game::toggleFullscreen() {
+    int monitor = GetCurrentMonitor();
+
+    if (!IsWindowFullscreen()) {
+        SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
+        ToggleFullscreen();
+    } else {
+        ToggleFullscreen();
+        SetWindowSize(constants::VIRTUAL_WIDTH, constants::VIRTUAL_HEIGHT);
+    }
+}
+
 void Game::handleInput() {
+    if (IsKeyPressed(KEY_F11)) {
+        toggleFullscreen();
+    }
+
     if (m_state == GameState::MainMenu) {
         auto result = m_menu.update();
         switch (result.type) {
@@ -175,14 +212,15 @@ void Game::handleInput() {
     if (input::isPlacePressed()) {
         auto& world = m_session.getWorld();
         auto& player = m_session.getPlayer();
-        Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), m_camera.getCamera());
+        Vector2 mouse = math::getVirtualMouse();
+        Vector2 worldPos = GetScreenToWorld2D(mouse, m_camera.getCamera());
         int tx = math::worldToTileX(worldPos.x);
         int ty = math::worldToTileY(worldPos.y);
         if (world.isInBounds(tx, ty) && world.getTile(tx, ty) == TileId::ChestBlock) {
             float distX = std::abs(player.getPosition().x + player.getBounds().width / 2 -
-                                   (math::tileToWorldX(tx) + constants::TILE_SIZE / 2.0f));
+                                    (math::tileToWorldX(tx) + constants::TILE_SIZE / 2.0f));
             float distY = std::abs(player.getPosition().y + player.getBounds().height / 2 -
-                                   (math::tileToWorldY(ty) + constants::TILE_SIZE / 2.0f));
+                                    (math::tileToWorldY(ty) + constants::TILE_SIZE / 2.0f));
             if (distX <= 3.0f * constants::TILE_SIZE && distY <= 3.0f * constants::TILE_SIZE) {
                 m_chestScreen.open(tx, ty);
                 SoundManager::instance().play(SoundManager::BlockPlace);
@@ -191,7 +229,7 @@ void Game::handleInput() {
             }
         }
         InteractionSystem::handlePlacePress(m_session.getPlayer(), m_session.getWorld(),
-                                             m_camera.getCamera(), m_session.getMinimap());
+                                              m_camera.getCamera(), m_session.getMinimap());
     }
 }
 
@@ -234,7 +272,7 @@ void Game::update(float dt) {
         }
     }
 
-    LiquidSystem::update(world, dt);
+    m_liquidSystem.update(world, dt);
 
     if (LiquidSystem::isInLava(world, player.getPosition().x, player.getPosition().y,
                                 player.getBounds().width, player.getBounds().height)) {
@@ -329,38 +367,56 @@ void Game::newGame(const std::string& name, WorldSize size, int slot) {
     auto& player = m_session.getPlayer();
     auto& rng = m_session.getRNG();
 
-    BeginDrawing();
-    ClearBackground(Color{20, 20, 30, 255});
     const char* loadingTitle = "Generating World...";
     int loadingSize = 40;
     int loadingW = MeasureText(loadingTitle, loadingSize);
-    DrawText(loadingTitle, (constants::SCREEN_WIDTH - loadingW) / 2,
-             constants::SCREEN_HEIGHT / 2 - 80, loadingSize, GREEN);
     int barW = 400, barH = 28;
-    int barX = (constants::SCREEN_WIDTH - barW) / 2;
-    int barY = constants::SCREEN_HEIGHT / 2 - 10;
-    DrawRectangle(barX, barY, barW, barH, Color{40, 40, 50, 255});
-    DrawRectangleLines(barX, barY, barW, barH, Color{80, 80, 120, 255});
-    DrawText("Preparing...", (constants::SCREEN_WIDTH - MeasureText("Preparing...", 20)) / 2,
-             barY + barH + 12, 20, Color{120, 120, 140, 255});
-    EndDrawing();
+    int barX = (constants::VIRTUAL_WIDTH - barW) / 2;
+    int barY = constants::VIRTUAL_HEIGHT / 2 - 10;
 
-    world.generate(seed, [&](float progress) {
-        BeginDrawing();
-        ClearBackground(Color{20, 20, 30, 255});
-        DrawText(loadingTitle, (constants::SCREEN_WIDTH - loadingW) / 2,
-                 constants::SCREEN_HEIGHT / 2 - 80, loadingSize, GREEN);
+    auto renderLoadingFrame = [&](const char* phase, float progress) {
+        BeginTextureMode(m_target);
+        ClearBackground(BLACK);
+        DrawText(loadingTitle, (constants::VIRTUAL_WIDTH - loadingW) / 2,
+                 constants::VIRTUAL_HEIGHT / 2 - 80, loadingSize, GREEN);
         DrawRectangle(barX, barY, barW, barH, Color{40, 40, 50, 255});
         DrawRectangleLines(barX, barY, barW, barH, Color{80, 80, 120, 255});
-        int fillW = static_cast<int>((barW - 4) * progress);
-        if (fillW > 0) DrawRectangle(barX + 2, barY + 2, fillW, barH - 4, GREEN);
+        if (progress > 0.0f) {
+            int fillW = static_cast<int>((barW - 4) * progress);
+            if (fillW > 0) DrawRectangle(barX + 2, barY + 2, fillW, barH - 4, GREEN);
+            int phaseW = MeasureText(phase, 20);
+            DrawText(phase, (constants::VIRTUAL_WIDTH - phaseW) / 2,
+                     barY + barH + 12, 20, Color{120, 120, 140, 255});
+            std::string pct = std::to_string(static_cast<int>(progress * 100)) + "%";
+            DrawText(pct.c_str(), barX + barW + 10, barY + 4, 20, GREEN);
+        } else {
+            DrawText("Preparing...", (constants::VIRTUAL_WIDTH - MeasureText("Preparing...", 20)) / 2,
+                     barY + barH + 12, 20, Color{120, 120, 140, 255});
+        }
+        EndTextureMode();
+
+        BeginDrawing();
+        ClearBackground(BLACK);
+        Rectangle dest = math::getScaledDestRect();
+        DrawTexturePro(
+            m_target.texture,
+            { 0.0f, 0.0f,
+              static_cast<float>(m_target.texture.width),
+              static_cast<float>(-m_target.texture.height) },
+            dest,
+            { 0.0f, 0.0f },
+            0.0f,
+            WHITE
+        );
+        EndDrawing();
+    };
+
+    renderLoadingFrame("Preparing...", 0.0f);
+
+    world.generate(seed, [&](float progress) {
         const char* phases[] = {"Terrain...", "Caves...", "Cabins...", "Ores...", "Pockets...", "Trees...", "Islands..."};
         int phaseIdx = std::min(static_cast<int>(progress * 7), 6);
-        DrawText(phases[phaseIdx], (constants::SCREEN_WIDTH - MeasureText(phases[phaseIdx], 20)) / 2,
-                 barY + barH + 12, 20, Color{120, 120, 140, 255});
-        std::string pct = std::to_string(static_cast<int>(progress * 100)) + "%";
-        DrawText(pct.c_str(), barX + barW + 10, barY + 4, 20, GREEN);
-        EndDrawing();
+        renderLoadingFrame(phases[phaseIdx], progress);
     });
 
     auto give = [&](TileId id, int count = 1) { player.getInventory().addItem(id, count); };
@@ -431,5 +487,6 @@ void Game::cleanup() {
     TextureManager::instance().unloadAll();
     SoundManager::instance().unloadAll();
     CloseAudioDevice();
+    if (m_target.id > 0) UnloadRenderTexture(m_target);
     CloseWindow();
 }

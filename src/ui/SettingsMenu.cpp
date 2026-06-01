@@ -1,5 +1,6 @@
 #include "SettingsMenu.hpp"
 #include "core/Constants.hpp"
+#include "core/Math.hpp"
 #include "core/SoundManager.hpp"
 
 #include <algorithm>
@@ -15,14 +16,14 @@ namespace {
 
     bool isClicked(Rectangle rect) {
         if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) return false;
-        return CheckCollisionPointRec(GetMousePosition(), rect);
+        return CheckCollisionPointRec(math::getVirtualMouse(), rect);
     }
 }
 
 SettingsMenu::SettingsMenu() = default;
 
 SettingsMenu::Action SettingsMenu::update() {
-    Vector2 mouse = GetMousePosition();
+    Vector2 mouse = math::getVirtualMouse();
 
     Rectangle backRect = {
         (constants::SCREEN_WIDTH - 160.0f) / 2.0f,
@@ -84,15 +85,13 @@ void SettingsMenu::render() const {
     std::string pct = std::to_string(static_cast<int>(m_volume * 100)) + "%";
     DrawText(pct.c_str(), SLIDER_X + SLIDER_W + 20, VOLUME_Y - 4, 20, WHITE);
 
-    DrawText("Use Arrow Keys or click & drag", SLIDER_X, VOLUME_Y + 30, 16, Color{120, 120, 140, 255});
-
     Rectangle backRect = {
         (constants::SCREEN_WIDTH - 160.0f) / 2.0f,
         static_cast<float>(BACK_Y),
         160.0f,
         44.0f
     };
-    bool backHov = CheckCollisionPointRec(GetMousePosition(), backRect);
+    bool backHov = CheckCollisionPointRec(math::getVirtualMouse(), backRect);
     DrawRectangleRec(backRect, backHov ? Color{50, 45, 45, 255} : Color{35, 35, 35, 255});
     DrawRectangleLinesEx(backRect, 1, backHov ? Color{180, 100, 100, 255} : Color{60, 60, 60, 255});
     const char* backText = "Back";

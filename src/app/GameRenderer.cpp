@@ -16,7 +16,7 @@
 
 namespace {
     constexpr float CYCLE_LENGTH = 420.0f;
-    constexpr int UNDERGROUND_THRESHOLD = 15;
+    constexpr int UNDERGROUND_THRESHOLD = 30;
     constexpr int BEACH_MARGIN = 60;
 }
 

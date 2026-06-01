@@ -101,7 +101,7 @@ int InventoryScreen::getSlotAt(Vector2 mouse) const {
 InventoryScreen::Action InventoryScreen::update(Player& player, const World& world) {
     auto& inventory = player.getInventory();
     auto& slots = inventory.getSlots();
-    Vector2 mouse = GetMousePosition();
+    Vector2 mouse = math::getVirtualMouse();
 
     m_hoveredSlot = getSlotAt(mouse);
 
@@ -304,7 +304,7 @@ void InventoryScreen::render(const Player& player, const World& world) const {
         DrawText("v", PANEL_X + PANEL_W / 2 - 5, PANEL_Y + PANEL_H - 18, 14, Color{160, 160, 180, 255});
     }
 
-    Vector2 mouse = GetMousePosition();
+    Vector2 mouse = math::getVirtualMouse();
     Rectangle menuBtn = {
         static_cast<float>(MENU_BTN_X),
         static_cast<float>(MENU_BTN_Y),

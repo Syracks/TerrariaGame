@@ -218,7 +218,12 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera) {
                 unsigned char alpha = static_cast<unsigned char>(100 + 80 * fill);
                 DrawRectangle(px, liquidY, constants::TILE_SIZE, liquidH,
                               Color{40, 120, 220, alpha});
-                if (fill > 0.5f) {
+
+                bool isTopSurface = tileY - 1 < 0 ||
+                    (!world.isInBounds(tileX, tileY - 1)) ||
+                    (world.isSolid(tileX, tileY - 1)) ||
+                    world.getWater(tileX, tileY - 1) == 0;
+                if (fill > 0.5f && isTopSurface) {
                     DrawRectangle(px, liquidY, constants::TILE_SIZE, 1,
                                   Color{80, 160, 255, alpha});
                 }
@@ -231,7 +236,12 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera) {
                 unsigned char alpha = static_cast<unsigned char>(180 + 75 * fill);
                 DrawRectangle(px, liquidY, constants::TILE_SIZE, liquidH,
                               Color{255, 80, 0, alpha});
-                if (fill > 0.5f) {
+
+                bool isTopSurface = tileY - 1 < 0 ||
+                    (!world.isInBounds(tileX, tileY - 1)) ||
+                    (world.isSolid(tileX, tileY - 1)) ||
+                    world.getLava(tileX, tileY - 1) == 0;
+                if (fill > 0.5f && isTopSurface) {
                     DrawRectangle(px, liquidY, constants::TILE_SIZE, 1,
                                   Color{255, 180, 50, alpha});
                 }

@@ -9,7 +9,7 @@
 #include <string>
 #include <cmath>
 
-constexpr float CYCLE_LENGTH = 300.0f + 120.0f;  // day + night
+constexpr float CYCLE_LENGTH = 420.0f;
 
 void HUD::renderPlayerHP(const Player& player) {
     int barW = 200;

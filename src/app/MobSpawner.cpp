@@ -6,11 +6,8 @@
 #include "core/Math.hpp"
 
 namespace {
-    constexpr float DAY_LENGTH = 300.0f;
-    constexpr float NIGHT_LENGTH = 120.0f;
-    constexpr float CYCLE_LENGTH = DAY_LENGTH + NIGHT_LENGTH;
+    constexpr float CYCLE_LENGTH = 420.0f;
     constexpr float NIGHT_START = 0.5f;
-    constexpr int ZOMBIE_SPAWN_INTERVAL = 8;
 
     bool isSolidForSpawn(const World& world, int x, int y) {
         if (!world.isInBounds(x, y)) return false;
@@ -46,23 +43,24 @@ namespace {
 
 void MobSpawner::spawnSlimes(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
                               const Player& player, std::mt19937& rng) {
-    std::uniform_int_distribution<int> distCount(5, 10);
-    std::uniform_int_distribution<int> distOff(30, 40);
-    std::uniform_int_distribution<int> distType(0, 2);
+    std::uniform_int_distribution<int> distCount(3, 8);
+    std::uniform_int_distribution<int> distX(20, world.getWorldWidth() - 20);
+    std::uniform_int_distribution<int> distType(0, 4);
     int count = distCount(rng);
 
-    int worldWidth = world.getWorldWidth();
-    int playerSpawnTx = worldWidth / 2;
+    int playerTx = math::worldToTileX(player.getPosition().x + player.getBounds().width / 2);
 
-    for (int i = 0; i < count; ++i) {
-        int offset = distOff(rng);
-        int tx = (i % 2 == 0) ? playerSpawnTx - offset : playerSpawnTx + offset;
-        int facing = (i % 2 == 0) ? 1 : -1;
+    for (int i = 0; i < count * 4; ++i) {
+        if (static_cast<int>(mobs.size()) >= count) break;
 
-        if (tx < 0 || tx >= worldWidth) continue;
+        int tx = distX(rng);
+        if (std::abs(tx - playerTx) < 25) continue;
+        if (tx < 0 || tx >= world.getWorldWidth()) continue;
 
         int surfaceY = findSurfaceY(world, tx);
         if (surfaceY >= world.getWorldHeight()) continue;
+        if (!hasHeadRoom(world, tx, surfaceY)) continue;
+        if (!hasRealGroundBelow(world, tx, surfaceY)) continue;
 
         int spawnY = std::max(0, surfaceY - 2);
         MobType mt = (distType(rng) == 0) ? MobType::BlueSlime : MobType::Slime;
@@ -71,7 +69,7 @@ void MobSpawner::spawnSlimes(World& world, std::vector<std::unique_ptr<Mob>>& mo
             static_cast<float>(tx) * constants::TILE_SIZE,
             static_cast<float>(spawnY) * constants::TILE_SIZE
         });
-        slime->setFacing(facing);
+        slime->setFacing(distX(rng) < playerTx ? 1 : -1);
         slime->load();
         mobs.push_back(std::move(slime));
     }
@@ -79,29 +77,31 @@ void MobSpawner::spawnSlimes(World& world, std::vector<std::unique_ptr<Mob>>& mo
 
 void MobSpawner::spawnZombies(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
                                const Player& player, std::mt19937& rng) {
-    std::uniform_int_distribution<int> distCount(1, 3);
-    std::uniform_int_distribution<int> distOff(40, 70);
+    std::uniform_int_distribution<int> distCount(1, 4);
+    std::uniform_int_distribution<int> distOff(35, 80);
     int count = distCount(rng);
 
     int playerTx = math::worldToTileX(player.getPosition().x + player.getBounds().width / 2);
     int worldWidth = world.getWorldWidth();
 
-    for (int i = 0; i < count; ++i) {
-        int offset = distOff(rng);
-        int tx = (i % 2 == 0) ? playerTx - offset : playerTx + offset;
-        int facing = (i % 2 == 0) ? 1 : -1;
+    for (int i = 0; i < count * 4; ++i) {
+        if (static_cast<int>(mobs.size()) >= count) break;
 
+        int offset = distOff(rng);
+        int tx = (distOff(rng) < 50) ? playerTx - offset : playerTx + offset;
         if (tx < 0 || tx >= worldWidth) continue;
 
         int surfaceY = findSurfaceY(world, tx);
         if (surfaceY >= world.getWorldHeight()) continue;
+        if (!hasHeadRoom(world, tx, surfaceY)) continue;
+        if (!hasRealGroundBelow(world, tx, surfaceY)) continue;
 
         int spawnY = std::max(0, surfaceY - 2);
         auto zombie = std::make_unique<Mob>(MobType::Zombie, Vector2{
             static_cast<float>(tx) * constants::TILE_SIZE,
             static_cast<float>(spawnY) * constants::TILE_SIZE
         });
-        zombie->setFacing(facing);
+        zombie->setFacing(tx < playerTx ? 1 : -1);
         zombie->load();
         mobs.push_back(std::move(zombie));
     }
@@ -114,13 +114,25 @@ void MobSpawner::updateNightSpawning(World& world, std::vector<std::unique_ptr<M
     if (t <= NIGHT_START) return;
     if (mobs.size() >= 20) return;
 
-    static int zombieSpawnTimer = 0;
-    zombieSpawnTimer++;
-    if (zombieSpawnTimer < ZOMBIE_SPAWN_INTERVAL * constants::TARGET_FPS) return;
-    zombieSpawnTimer = 0;
+    static float spawnTimer = 0.0f;
+    static float nextSpawn = 0.0f;
+    if (nextSpawn == 0.0f) {
+        std::uniform_real_distribution<float> distDelay(3.0f, 10.0f);
+        nextSpawn = distDelay(rng);
+    }
 
-    std::uniform_int_distribution<int> dist(0, 2);
-    if (dist(rng) == 0) {
+    spawnTimer += dt;
+    if (spawnTimer < nextSpawn) return;
+    spawnTimer = 0.0f;
+
+    std::uniform_real_distribution<float> distDelay(3.0f, 10.0f);
+    nextSpawn = distDelay(rng);
+
+    std::uniform_int_distribution<int> distType(0, 3);
+    int roll = distType(rng);
+    if (roll < 2) {
         spawnZombies(world, mobs, player, rng);
+    } else {
+        spawnSlimes(world, mobs, player, rng);
     }
 }

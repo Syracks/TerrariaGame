@@ -20,14 +20,17 @@ Raylib se stáhne automaticky přes FetchContent.
 - Těžení zdí (kladivem)
 - Inventář (45 slotů, 9 v hotbaru, výběr 1–9)
 - Crafting ze surovin (v ruce, u pracovního stolu, pece, kovadliny)
-- Denní/noční cyklus s dynamickým osvětlením
+- Denní/noční cyklus s dynamickým osvětlením (12h/12h, 420s celkem)
+- Tekutiny: voda a láva s fyzikou šíření, vzájemná interakce (voda+láva→kámen)
 - Minimapa
 - Ukládání a načítání hry (5 slotů)
 - 3 velikosti světa (Small 1024×256, Medium 2048×400, Large 4096×600)
+- Virtuální rozlišení 1280×720 s letterbox scalingem, F11 fullscreen toggle
 
 ### Herní světy
-- Procedurální generování terénu s biomy (Forest, Desert, Snow, Plains, Jungle)
-- Jeskyně, hadovité tunely, podzemní místnosti
+- Procedurální generování terénu s biomy (Forest, Desert, Snow, Plains, Jungle, Ocean, Beach)
+- Jeskyně, hadovité tunely, podzemní místnosti (cabiny)
+- Vodní a lávové kaluže (bowl-shaped pools)
 - Různé typy bloků: tráva, hlína, kámen, písek, sníh, led, jíl, štěrk, bláto, dřevo, prkna, listí
 - Rudy: měď, železo, zlato
 - Speciální biomové bloky: kaktus, mramor, žula, džunglová tráva, hellstone
@@ -42,6 +45,7 @@ Raylib se stáhne automaticky přes FetchContent.
 
 ### Technické
 - Chunk-based svět (32×32 bloků na chunk, lazy alokace)
+- Virtuální rozlišení 1280×720 → škálování na okno s letterboxingem
 - AABB kolize s tile mapou
 - Částicový systém (těžení, smrt, crafting)
 - SoundManager s procedurálně generovanými zvuky (žádné externí audio soubory)
@@ -50,6 +54,8 @@ Raylib se stáhne automaticky přes FetchContent.
 - Respawn s návratem na povrch
 - Systém nástrojů – krumpáč, sekera, meč, kladivo (Wood, Copper, Iron, Gold)
 - Nábytek: dveře, židle, stůl, pracovní stůl, pec, kovadlina, truhla
+- Score/Distance systém (UI v levém horním rohu)
+- Loading screen při generování světa
 
 ## Ovládání
 
@@ -63,6 +69,7 @@ Raylib se stáhne automaticky přes FetchContent.
 | 1–9 | výběr slotu hotbaru |
 | F5 | uložit hru |
 | F9 | načíst hru |
+| F11 | přepnutí fullscreen |
 | Esc | pauza / inventář |
 | M | přepnutí minimapy |
 
@@ -70,8 +77,8 @@ Raylib se stáhne automaticky přes FetchContent.
 
 ```
 src/
-├── app/          Game, GameState, kamera, ovládání hráče
-├── core/         Konstanty, Input handler, Math, TextureManager, SoundManager
+├── app/          Game, GameState, kamera, ovládání hráče, GameRenderer, GameSession
+├── core/         Konstanty, Math helper, TextureManager, SoundManager
 ├── crafting/     Recepty a crafting systém
 ├── entities/     Player, Mob, Entity (základ)
 ├── items/        Inventory, ItemStack, Tool, ItemDatabase
@@ -100,7 +107,8 @@ src/
 | `CombatSystem` | Boj – zásahy mečem, kontaktní poškození od mobů |
 | `InteractionSystem` | Interakce – těžení, pokládání, otevírání dveří |
 | `DeathSystem` | Smrt hráče, respawn, nalezení bezpečné pozice na povrchu |
-| `RenderSystem` | Vykreslování bloků, zdí, dynamické osvětlení |
+| `RenderSystem` | Vykreslování bloků, zdí, dynamické osvětlení, podsvětí |
+| `GameRenderer` | Vrstvení renderingu (pozadí, bloky, entity, UI), underground threshold |
 | `ParticleSystem` | Částicové efekty |
 | `CameraController` | Kamera sledující hráče (zoom 2×) |
 | `SaveManager` | Ukládání/načítání do textového formátu |
@@ -117,6 +125,7 @@ src/
 - `repairSurfaceLayer` problém zmírňuje, ale ne vždy je dostatečný
 - Worm caves (hadovité tunely) někdy vytvoří nečekané průniky na povrch
 - Floating islands dočasně zakázané (nestabilní generování)
+- Stromy kontrolují překážky v koruně, ale občas chybí vzduchové mezery u kmene
 
 ### Optimalizace
 - Light overlay počítá osvětlení v buňkách 32×32 px, což vytváří viditelné mřížkové přechody
@@ -124,4 +133,5 @@ src/
 - Save formát je textový – ukládá všechny dirty chunky, při Large světě pomalejší
 - Chunková alokace – všechny chunky světa se generují najednou při startu, žádné streamování
 - Fyzika tekutin šíří vodu/lávu po celém světě každý frame – může být pomalé při rozsáhlých zaplaveních
+- Denní doba se ukládá, ale night spawning používá vlastní timer, který se po načtení resetuje
 

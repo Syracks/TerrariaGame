@@ -65,7 +65,7 @@ enum class TileId : uint8_t {
 
 constexpr int MAX_LIQUID_LEVEL = 255;
 
-enum class Biome { Forest, Desert, Snow, Plains, Jungle };
+enum class Biome { Forest, Desert, Snow, Plains, Jungle, Ocean, Beach };
 
 struct LiquidInfo {
     uint8_t amount = 0;  // 0 = none, 255 = full

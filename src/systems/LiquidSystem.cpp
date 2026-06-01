@@ -14,7 +14,7 @@
 namespace {
     constexpr int FLOW_RATE_WATER = 4;
     constexpr int FLOW_RATE_LAVA = 2;
-    constexpr int MIN_LIQUID = 8;
+    constexpr int MIN_LIQUID = 2;
     constexpr int MAX_LIQUID = MAX_LIQUID_LEVEL;
     constexpr float TICK_INTERVAL = 0.1f;
     constexpr int MAX_TILES_PER_TICK = 2000;
@@ -28,25 +28,38 @@ static bool isSolidBlock(const World& world, int x, int y) {
     return world.isSolid(x, y);
 }
 
+void LiquidSystem::handleWaterLavaContact(World& world, int x, int y) {
+    if (world.getWater(x, y) == 0) return;
+
+    for (int i = 0; i < 4; ++i) {
+        int nx = x + dx4[i];
+        int ny = y + dy4[i];
+        if (!world.isInBounds(nx, ny)) continue;
+        if (world.getLava(nx, ny) > 0) {
+            world.setTile(x, y, TileId::Stone);
+            world.setWater(x, y, 0);
+            world.setLava(nx, ny, 0);
+            return;
+        }
+    }
+}
+
 void LiquidSystem::update(World& world, float dt) {
-    static float accumulator = 0.0f;
-    accumulator += dt;
-    if (accumulator < TICK_INTERVAL) return;
-    accumulator = 0.0f;
+    m_accumulator += dt;
+    if (m_accumulator < TICK_INTERVAL) return;
+    m_accumulator -= TICK_INTERVAL;
 
-    static std::vector<Chunk*> liquidChunks;
-    liquidChunks.clear();
-    world.getChunksWithLiquid(liquidChunks);
-    if (liquidChunks.empty()) return;
+    m_liquidChunks.clear();
+    world.getChunksWithLiquid(m_liquidChunks);
+    if (m_liquidChunks.empty()) return;
 
-    static std::vector<std::pair<int,int>> changes;
-    changes.clear();
-    changes.reserve(MAX_TILES_PER_TICK);
+    m_changes.clear();
+    m_changes.reserve(MAX_TILES_PER_TICK);
     int processed = 0;
 
     auto absdiff = [](int a, int b) { return a > b ? a - b : b - a; };
 
-    for (Chunk* chunk : liquidChunks) {
+    for (Chunk* chunk : m_liquidChunks) {
         int baseX = chunk->getChunkX() * constants::CHUNK_SIZE;
         int baseY = chunk->getChunkY() * constants::CHUNK_SIZE;
 
@@ -63,8 +76,10 @@ void LiquidSystem::update(World& world, float dt) {
                 uint8_t level = isLava ? lava : water;
                 int fr = isLava ? FLOW_RATE_LAVA : FLOW_RATE_WATER;
 
-                if (level < MIN_LIQUID) {
-                    changes.push_back({x, y});
+                handleWaterLavaContact(world, x, y);
+
+                if (level <= 1) {
+                    m_changes.push_back({x, y});
                     if (++processed >= MAX_TILES_PER_TICK) goto process;
                     continue;
                 }
@@ -75,8 +90,8 @@ void LiquidSystem::update(World& world, float dt) {
                     if (belowLiquid < MAX_LIQUID) {
                         int transfer = std::min(fr, std::min((int)level, MAX_LIQUID - (int)belowLiquid));
                         if (transfer > 0) {
-                            changes.push_back({x, y});
-                            changes.push_back({x, belowY});
+                            m_changes.push_back({x, y});
+                            m_changes.push_back({x, belowY});
                             if (++processed >= MAX_TILES_PER_TICK) goto process;
                         }
                     }
@@ -89,8 +104,8 @@ void LiquidSystem::update(World& world, float dt) {
                         if (nl < level) {
                             int transfer = std::min(fr, (level - (int)nl) / 2);
                             if (transfer > 0) {
-                                changes.push_back({x, y});
-                                changes.push_back({nx, y});
+                                m_changes.push_back({x, y});
+                                m_changes.push_back({nx, y});
                                 if (++processed >= MAX_TILES_PER_TICK) goto process;
                             }
                         }
@@ -103,7 +118,7 @@ void LiquidSystem::update(World& world, float dt) {
                     if (!world.isInBounds(nx, ny)) continue;
                     uint8_t nl = isLava ? world.getLava(nx, ny) : world.getWater(nx, ny);
                     if (absdiff(level, nl) > 1 && nl < MAX_LIQUID && level > 0) {
-                        changes.push_back({x, y});
+                        m_changes.push_back({x, y});
                         if (++processed >= MAX_TILES_PER_TICK) goto process;
                         break;
                     }
@@ -113,15 +128,15 @@ void LiquidSystem::update(World& world, float dt) {
     }
 
 process:
-    if (changes.empty()) return;
+    if (m_changes.empty()) return;
 
-    std::sort(changes.begin(), changes.end());
-    changes.erase(std::unique(changes.begin(), changes.end()), changes.end());
+    std::sort(m_changes.begin(), m_changes.end());
+    m_changes.erase(std::unique(m_changes.begin(), m_changes.end()), m_changes.end());
 
-    if (changes.size() > MAX_TILES_PER_TICK)
-        changes.resize(MAX_TILES_PER_TICK);
+    if (m_changes.size() > MAX_TILES_PER_TICK)
+        m_changes.resize(MAX_TILES_PER_TICK);
 
-    for (auto& [tx, ty] : changes) {
+    for (auto& [tx, ty] : m_changes) {
         uint8_t water = world.getWater(tx, ty);
         uint8_t lava = world.getLava(tx, ty);
         if (water == 0 && lava == 0) continue;
@@ -131,7 +146,7 @@ process:
         int fr = isLava ? FLOW_RATE_LAVA : FLOW_RATE_WATER;
         int remaining = level;
 
-        if (level < MIN_LIQUID) {
+        if (level <= 1) {
             if (isLava) world.setLava(tx, ty, 0);
             else world.setWater(tx, ty, 0);
             continue;
@@ -151,7 +166,13 @@ process:
             }
         }
 
-        if (remaining > 0 && isSolidBlock(world, tx, ty + 1)) {
+        bool belowBlockedOrFull = isSolidBlock(world, tx, ty + 1);
+        if (!belowBlockedOrFull && ty + 1 < constants::WORLD_HEIGHT) {
+            uint8_t belowLiquid = isLava ? world.getLava(tx, ty + 1) : world.getWater(tx, ty + 1);
+            if (belowLiquid >= MAX_LIQUID) belowBlockedOrFull = true;
+        }
+
+        if (remaining > 0 && belowBlockedOrFull) {
             for (int dir : {-1, 1}) {
                 int nx = tx + dir;
                 if (nx < 0 || nx >= constants::WORLD_WIDTH) continue;

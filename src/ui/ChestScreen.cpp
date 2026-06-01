@@ -4,6 +4,7 @@
 #include "items/ItemDefinition.hpp"
 #include "world/TileRegistry.hpp"
 #include "core/Constants.hpp"
+#include "core/Math.hpp"
 #include "core/TextureManager.hpp"
 
 static constexpr int SLOT_SIZE = 50;
@@ -68,7 +69,7 @@ int ChestScreen::getSlotAt(Vector2 mouse) const {
 void ChestScreen::update(Player& player, World& world) {
     if (!m_open) return;
 
-    auto mouse = GetMousePosition();
+    auto mouse = math::getVirtualMouse();
     m_hoveredSlot = getSlotAt(mouse);
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && m_hoveredSlot >= 0) {

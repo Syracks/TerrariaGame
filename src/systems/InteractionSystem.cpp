@@ -55,7 +55,7 @@ void InteractionSystem::handleMinePress(Player& player, const World& world,
 
     if (!isTool(held)) return;
 
-    Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), camera);
+    Vector2 worldPos = GetScreenToWorld2D(math::getVirtualMouse(), camera);
     int tx = math::worldToTileX(worldPos.x);
     int ty = math::worldToTileY(worldPos.y);
     if (!world.isInBounds(tx, ty)) return;
@@ -124,7 +124,7 @@ void InteractionSystem::handleSwingCompletion(Player& player, World& world,
 void InteractionSystem::handlePlacePress(Player& player, World& world,
                                           const Camera2D& camera,
                                           Minimap& minimap) {
-    Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), camera);
+    Vector2 worldPos = GetScreenToWorld2D(math::getVirtualMouse(), camera);
     int tx = math::worldToTileX(worldPos.x);
     int ty = math::worldToTileY(worldPos.y);
 
@@ -244,7 +244,7 @@ void InteractionSystem::handlePlacePress(Player& player, World& world,
 
 void InteractionSystem::handleChestInteraction(Player& player, World& world,
                                                 const Camera2D& camera) {
-    Vector2 worldPos = GetScreenToWorld2D(GetMousePosition(), camera);
+    Vector2 worldPos = GetScreenToWorld2D(math::getVirtualMouse(), camera);
     int tx = math::worldToTileX(worldPos.x);
     int ty = math::worldToTileY(worldPos.y);
     if (!world.isInBounds(tx, ty)) return;

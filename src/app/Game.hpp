@@ -10,6 +10,8 @@
 #include "ui/HUD.hpp"
 #include "GameSession.hpp"
 #include "GameRenderer.hpp"
+#include "systems/LiquidSystem.hpp"
+#include <raylib.h>
 #include <memory>
 
 class Game {
@@ -28,6 +30,7 @@ private:
     void loadGame(int slot);
     void saveGame();
     void cleanupWorld();
+    void toggleFullscreen();
 
     GameState m_state;
     CameraController m_camera;
@@ -37,8 +40,12 @@ private:
     MainMenu m_menu;
     SettingsMenu m_settingsMenu;
     GameRenderer m_renderer;
+    LiquidSystem m_liquidSystem;
 
     GameSession m_session;
+
+    RenderTexture2D m_target{};
+    bool m_fullscreen = false;
 
     float m_autosaveTimer = 0.0f;
     int m_spawnGuard = 0;
