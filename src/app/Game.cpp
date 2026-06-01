@@ -47,7 +47,7 @@ void Game::init() {
 
     InitAudioDevice();
     SoundManager::instance().loadAll();
-    SoundManager::instance().setMasterVolume(m_settingsMenu.getVolume());
+    applySettings();
 
     m_renderer.init();
 
@@ -115,8 +115,30 @@ void Game::toggleFullscreen() {
         ToggleFullscreen();
     } else {
         ToggleFullscreen();
-        SetWindowSize(constants::VIRTUAL_WIDTH, constants::VIRTUAL_HEIGHT);
+        int idx = m_settingsMenu.getResolutionIndex();
+        SetWindowSize(constants::RESOLUTIONS[idx][0], constants::RESOLUTIONS[idx][1]);
     }
+    m_settingsMenu.setFullscreen(IsWindowFullscreen());
+}
+
+void Game::applySettings() {
+    SoundManager::instance().setMasterVolume(m_settingsMenu.getVolume());
+
+    if (m_settingsMenu.getStoredFullscreen() && !IsWindowFullscreen()) {
+        int monitor = GetCurrentMonitor();
+        SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
+        ToggleFullscreen();
+    } else if (!m_settingsMenu.getStoredFullscreen()) {
+        if (IsWindowFullscreen()) {
+            ToggleFullscreen();
+        }
+        SetWindowSize(
+            constants::RESOLUTIONS[m_settingsMenu.getResolutionIndex()][0],
+            constants::RESOLUTIONS[m_settingsMenu.getResolutionIndex()][1]
+        );
+    }
+
+    m_session.setMinimapVisible(m_settingsMenu.getShowMinimap());
 }
 
 void Game::handleInput() {
@@ -304,7 +326,6 @@ void Game::update(float dt) {
                               m_session.getRNG());
 
     if (respawned && m_session.getDifficulty() == Difficulty::Hardcore) {
-        m_totalKills = 0;
         SaveManager::deleteSlot(m_session.getCurrentSlot());
         cleanupWorld();
         m_state = GameState::MainMenu;
@@ -362,7 +383,7 @@ void Game::update(float dt) {
     m_session.getParticles().update(dt);
 
     Difficulty diff = m_session.getDifficulty();
-    MobSpawner::updateNightSpawning(world, mobs, player, m_session.getDayTime(), dt, m_session.getRNG(), diff);
+    m_mobSpawner.updateNightSpawning(world, mobs, player, m_session.getDayTime(), dt, m_session.getRNG(), diff);
 
     m_autosaveTimer += dt;
     if (m_autosaveTimer >= AUTOSAVE_INTERVAL) {
@@ -438,7 +459,7 @@ void Game::newGame(const std::string& name, WorldSize size, int slot, Difficulty
 
     m_session.getMinimap().rebuild(world);
 
-    MobSpawner::spawnSlimes(world, m_session.getMobs(), player, rng, difficulty);
+    m_mobSpawner.spawnSlimes(world, m_session.getMobs(), player, rng, difficulty);
 
     Vector2 spawnPos = DeathSystem::findSafeSpawnPosition(world);
     player.setPosition(spawnPos);
@@ -448,6 +469,7 @@ void Game::newGame(const std::string& name, WorldSize size, int slot, Difficulty
 
     m_camera.update(player);
 
+    m_mobSpawner.reset();
     saveGame();
     m_totalKills = 0;
     m_autosaveTimer = 0.0f;
@@ -479,6 +501,7 @@ bool Game::loadGame(int slot) {
     m_session.adoptWorld(std::move(world), std::move(player), slot, info.size, info.name, info.seed, info.difficulty);
     m_session.setDayTime(dayTime);
 
+    m_mobSpawner.reset();
     m_session.getMinimap().rebuild(m_session.getWorld());
     m_session.setMinimapVisible(m_settingsMenu.getShowMinimap());
 

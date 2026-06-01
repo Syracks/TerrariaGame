@@ -25,3 +25,4 @@ CMakeUserPresets.json
 saves/
 *.sav
 *.save
+config/settings.txt

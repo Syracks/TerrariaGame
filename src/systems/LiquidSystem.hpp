@@ -15,7 +15,7 @@ public:
     static bool isInLava(const World& world, float worldX, float worldY, float width, float height);
 
 private:
-    void handleWaterLavaContact(World& world, int x, int y);
+    bool handleWaterLavaContact(World& world, int x, int y);
 
     float m_accumulator = 0.0f;
     std::vector<Chunk*> m_liquidChunks;

@@ -8,6 +8,7 @@
 namespace {
     constexpr float CYCLE_LENGTH = 420.0f;
     constexpr float NIGHT_START = 0.5f;
+    constexpr int maxSlimesTarget = 20;
 
     bool isSolidForSpawn(const World& world, int x, int y) {
         if (!world.isInBounds(x, y)) return false;
@@ -51,9 +52,10 @@ void MobSpawner::spawnSlimes(World& world, std::vector<std::unique_ptr<Mob>>& mo
     int count = distCount(rng);
 
     int playerTx = math::worldToTileX(player.getPosition().x + player.getBounds().width / 2);
+    int targetCount = std::min(maxSlimesTarget, static_cast<int>(mobs.size()) + count);
 
     for (int i = 0; i < count * 4; ++i) {
-        if (static_cast<int>(mobs.size()) >= count) break;
+        if (static_cast<int>(mobs.size()) >= targetCount) break;
 
         int tx = distX(rng);
         if (std::abs(tx - playerTx) < 25) continue;
@@ -87,12 +89,14 @@ void MobSpawner::spawnZombies(World& world, std::vector<std::unique_ptr<Mob>>& m
 
     int playerTx = math::worldToTileX(player.getPosition().x + player.getBounds().width / 2);
     int worldWidth = world.getWorldWidth();
+    std::bernoulli_distribution sideDist(0.5);
+    int targetCount = static_cast<int>(mobs.size()) + count;
 
     for (int i = 0; i < count * 4; ++i) {
-        if (static_cast<int>(mobs.size()) >= count) break;
+        if (static_cast<int>(mobs.size()) >= targetCount) break;
 
         int offset = distOff(rng);
-        int tx = (distOff(rng) < 50) ? playerTx - offset : playerTx + offset;
+        int tx = sideDist(rng) ? playerTx - offset : playerTx + offset;
         if (tx < 0 || tx >= worldWidth) continue;
 
         int surfaceY = findSurfaceY(world, tx);
@@ -111,6 +115,11 @@ void MobSpawner::spawnZombies(World& world, std::vector<std::unique_ptr<Mob>>& m
     }
 }
 
+void MobSpawner::reset() {
+    m_spawnTimer = 0.0f;
+    m_nextSpawn = 0.0f;
+}
+
 void MobSpawner::updateNightSpawning(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
                                       const Player& player, float dayTime, float dt,
                                       std::mt19937& rng,
@@ -121,19 +130,17 @@ void MobSpawner::updateNightSpawning(World& world, std::vector<std::unique_ptr<M
     int maxMobs = hardcore ? 40 : 20;
     if (static_cast<int>(mobs.size()) >= maxMobs) return;
 
-    static float spawnTimer = 0.0f;
-    static float nextSpawn = 0.0f;
-    if (nextSpawn == 0.0f) {
+    if (m_nextSpawn == 0.0f) {
         std::uniform_real_distribution<float> distDelay(hardcore ? 1.5f : 3.0f, hardcore ? 5.0f : 10.0f);
-        nextSpawn = distDelay(rng);
+        m_nextSpawn = distDelay(rng);
     }
 
-    spawnTimer += dt;
-    if (spawnTimer < nextSpawn) return;
-    spawnTimer = 0.0f;
+    m_spawnTimer += dt;
+    if (m_spawnTimer < m_nextSpawn) return;
+    m_spawnTimer = 0.0f;
 
     std::uniform_real_distribution<float> distDelay(hardcore ? 1.5f : 3.0f, hardcore ? 5.0f : 10.0f);
-    nextSpawn = distDelay(rng);
+    m_nextSpawn = distDelay(rng);
 
     std::uniform_int_distribution<int> distType(0, 3);
     int roll = distType(rng);

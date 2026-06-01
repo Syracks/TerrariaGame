@@ -22,7 +22,8 @@ Raylib se stáhne automaticky přes FetchContent.
 - Crafting ze surovin (v ruce, u pracovního stolu, pece, kovadliny)
 - Denní/noční cyklus s dynamickým osvětlením (12h/12h, 420s celkem)
 - Tekutiny: voda a láva s fyzikou šíření, vzájemná interakce (voda+láva→kámen)
-- Minimapa
+- Minimapa (přepnutí M)
+- Nastavení hry – volume, rozlišení, fullscreen, zobrazení minimapy (perzistentní, aplikuje se při startu)
 - Ukládání a načítání hry (5 slotů)
 - 3 velikosti světa (Small 1024×256, Medium 2048×400, Large 4096×600)
 - Virtuální rozlišení 1280×720 s letterbox scalingem, F11 fullscreen toggle
@@ -103,12 +104,14 @@ src/
 | `CollisionSystem` | AABB kolize s tile mapou |
 | `PhysicsSystem` | Aplikace gravitace a pohybu na entity |
 | `MiningSystem` | Těžení bloků podle nástroje a tvrdosti |
-| `LiquidSystem` | Fyzika vody a lávy (šíření, detekce ponoření) |
+| `LiquidSystem` | Fyzika vody a lávy (šíření, detekce ponoření, voda+láva→kámen) |
 | `CombatSystem` | Boj – zásahy mečem, kontaktní poškození od mobů |
 | `InteractionSystem` | Interakce – těžení, pokládání, otevírání dveří |
 | `DeathSystem` | Smrt hráče, respawn, nalezení bezpečné pozice na povrchu |
 | `RenderSystem` | Vykreslování bloků, zdí, dynamické osvětlení, podsvětí |
 | `GameRenderer` | Vrstvení renderingu (pozadí, bloky, entity, UI), underground threshold |
+| `MobSpawner` | Noční spawnování (timer, počet, distance od hráče) |
+| `SettingsMenu` | Nastavení hry – volume, rozlišení, fullscreen, minimapa |
 | `ParticleSystem` | Částicové efekty |
 | `CameraController` | Kamera sledující hráče (zoom 2×) |
 | `SaveManager` | Ukládání/načítání do textového formátu |
@@ -133,5 +136,3 @@ src/
 - Save formát je textový – ukládá všechny dirty chunky, při Large světě pomalejší
 - Chunková alokace – všechny chunky světa se generují najednou při startu, žádné streamování
 - Fyzika tekutin šíří vodu/lávu po celém světě každý frame – může být pomalé při rozsáhlých zaplaveních
-- Denní doba se ukládá, ale night spawning používá vlastní timer, který se po načtení resetuje
-

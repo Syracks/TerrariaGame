@@ -11,14 +11,19 @@ class Player;
 
 class MobSpawner {
 public:
-    static void spawnSlimes(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
-                            const Player& player, std::mt19937& rng,
-                            Difficulty difficulty = Difficulty::Normal);
-    static void spawnZombies(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
-                             const Player& player, std::mt19937& rng,
+    void spawnSlimes(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
+                     const Player& player, std::mt19937& rng,
+                     Difficulty difficulty = Difficulty::Normal);
+    void spawnZombies(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
+                      const Player& player, std::mt19937& rng,
+                      Difficulty difficulty = Difficulty::Normal);
+    void updateNightSpawning(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
+                             const Player& player, float dayTime, float dt,
+                             std::mt19937& rng,
                              Difficulty difficulty = Difficulty::Normal);
-    static void updateNightSpawning(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
-                                    const Player& player, float dayTime, float dt,
-                                    std::mt19937& rng,
-                                    Difficulty difficulty = Difficulty::Normal);
+    void reset();
+
+private:
+    float m_spawnTimer = 0.0f;
+    float m_nextSpawn = 0.0f;
 };

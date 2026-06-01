@@ -28,8 +28,8 @@ static bool isSolidBlock(const World& world, int x, int y) {
     return world.isSolid(x, y);
 }
 
-void LiquidSystem::handleWaterLavaContact(World& world, int x, int y) {
-    if (world.getWater(x, y) == 0) return;
+bool LiquidSystem::handleWaterLavaContact(World& world, int x, int y) {
+    if (world.getWater(x, y) == 0) return false;
 
     for (int i = 0; i < 4; ++i) {
         int nx = x + dx4[i];
@@ -39,9 +39,11 @@ void LiquidSystem::handleWaterLavaContact(World& world, int x, int y) {
             world.setTile(x, y, TileId::Stone);
             world.setWater(x, y, 0);
             world.setLava(nx, ny, 0);
-            return;
+            return true;
         }
     }
+
+    return false;
 }
 
 void LiquidSystem::update(World& world, float dt) {
@@ -76,7 +78,10 @@ void LiquidSystem::update(World& world, float dt) {
                 uint8_t level = isLava ? lava : water;
                 int fr = isLava ? FLOW_RATE_LAVA : FLOW_RATE_WATER;
 
-                handleWaterLavaContact(world, x, y);
+                if (handleWaterLavaContact(world, x, y)) {
+                    if (++processed >= MAX_TILES_PER_TICK) goto process;
+                    continue;
+                }
 
                 if (level <= 1) {
                     m_changes.push_back({x, y});

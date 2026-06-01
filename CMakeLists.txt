@@ -64,7 +64,7 @@ add_executable(Terraria ${SOURCES})
 
 target_include_directories(Terraria PRIVATE src)
 target_link_libraries(Terraria PRIVATE raylib)
-if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND UNIX)
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND UNIX AND NOT APPLE)
     target_link_options(Terraria PRIVATE -Wl,--hash-style=both)
 endif()
 

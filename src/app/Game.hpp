@@ -10,6 +10,7 @@
 #include "ui/HUD.hpp"
 #include "GameSession.hpp"
 #include "GameRenderer.hpp"
+#include "MobSpawner.hpp"
 #include "systems/LiquidSystem.hpp"
 #include <raylib.h>
 #include <memory>
@@ -31,6 +32,7 @@ private:
     void saveGame();
     void cleanupWorld();
     void toggleFullscreen();
+    void applySettings();
 
     GameState m_state;
     CameraController m_camera;
@@ -41,11 +43,11 @@ private:
     SettingsMenu m_settingsMenu;
     GameRenderer m_renderer;
     LiquidSystem m_liquidSystem;
+    MobSpawner m_mobSpawner;
 
     GameSession m_session;
 
     RenderTexture2D m_target{};
-    bool m_fullscreen = false;
 
     float m_autosaveTimer = 0.0f;
     int m_spawnGuard = 0;
