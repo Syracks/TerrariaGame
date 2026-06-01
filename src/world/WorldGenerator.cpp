@@ -1123,11 +1123,18 @@ void WorldGenerator::repairOceanTransitions() {
                 m_surfaceHeight[tileX] = surfaceY + diff / 2;
             }
 
-            if (m_world.getTile(tileX, surfaceY) != TileId::Sand) {
+            TileId surfaceTile = m_world.getTile(tileX, surfaceY);
+            if (surfaceTile != TileId::Sand && surfaceTile != TileId::Air) {
                 m_world.setTile(tileX, surfaceY, TileId::Sand);
+                m_world.setWater(tileX, surfaceY, 0);
+                m_world.setLava(tileX, surfaceY, 0);
                 for (int y = surfaceY + 1; y <= surfaceY + 4 && y < constants::WORLD_HEIGHT; ++y) {
                     TileId t = m_world.getTile(tileX, y);
-                    if (t == TileId::Air) m_world.setTile(tileX, y, TileId::Sand);
+                    if (t == TileId::Air) {
+                        m_world.setTile(tileX, y, TileId::Sand);
+                        m_world.setWater(tileX, y, 0);
+                        m_world.setLava(tileX, y, 0);
+                    }
                 }
             }
         }

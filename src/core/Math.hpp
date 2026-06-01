@@ -28,7 +28,7 @@ inline int chunkFromTile(int tileCoord) {
 }
 
 inline int localTileInChunk(int tileCoord) {
-    return ((tileCoord % constants::CHUNK_SIZE) + constants::CHUNK_SIZE) % constants::CHUNK_SIZE;
+    return tileCoord & (constants::CHUNK_SIZE - 1);
 }
 
 inline Rectangle getScaledDestRect() {
@@ -44,6 +44,8 @@ inline Rectangle getScaledDestRect() {
 inline Vector2 getVirtualMouse() {
     Vector2 m = GetMousePosition();
     Rectangle dest = getScaledDestRect();
+    if (dest.width <= 0.0f || dest.height <= 0.0f)
+        return {0.0f, 0.0f};
     return {
         (m.x - dest.x) * static_cast<float>(constants::VIRTUAL_WIDTH) / dest.width,
         (m.y - dest.y) * static_cast<float>(constants::VIRTUAL_HEIGHT) / dest.height

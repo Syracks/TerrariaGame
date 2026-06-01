@@ -42,8 +42,10 @@ namespace {
 }
 
 void MobSpawner::spawnSlimes(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
-                              const Player& player, std::mt19937& rng) {
-    std::uniform_int_distribution<int> distCount(3, 8);
+                              const Player& player, std::mt19937& rng,
+                              Difficulty difficulty) {
+    bool hardcore = (difficulty == Difficulty::Hardcore);
+    std::uniform_int_distribution<int> distCount(hardcore ? 8 : 3, hardcore ? 16 : 8);
     std::uniform_int_distribution<int> distX(20, world.getWorldWidth() - 20);
     std::uniform_int_distribution<int> distType(0, 4);
     int count = distCount(rng);
@@ -76,8 +78,10 @@ void MobSpawner::spawnSlimes(World& world, std::vector<std::unique_ptr<Mob>>& mo
 }
 
 void MobSpawner::spawnZombies(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
-                               const Player& player, std::mt19937& rng) {
-    std::uniform_int_distribution<int> distCount(1, 4);
+                               const Player& player, std::mt19937& rng,
+                               Difficulty difficulty) {
+    bool hardcore = (difficulty == Difficulty::Hardcore);
+    std::uniform_int_distribution<int> distCount(hardcore ? 3 : 1, hardcore ? 8 : 4);
     std::uniform_int_distribution<int> distOff(35, 80);
     int count = distCount(rng);
 
@@ -109,15 +113,18 @@ void MobSpawner::spawnZombies(World& world, std::vector<std::unique_ptr<Mob>>& m
 
 void MobSpawner::updateNightSpawning(World& world, std::vector<std::unique_ptr<Mob>>& mobs,
                                       const Player& player, float dayTime, float dt,
-                                      std::mt19937& rng) {
+                                      std::mt19937& rng,
+                                      Difficulty difficulty) {
     float t = dayTime / CYCLE_LENGTH;
     if (t <= NIGHT_START) return;
-    if (mobs.size() >= 20) return;
+    bool hardcore = (difficulty == Difficulty::Hardcore);
+    int maxMobs = hardcore ? 40 : 20;
+    if (static_cast<int>(mobs.size()) >= maxMobs) return;
 
     static float spawnTimer = 0.0f;
     static float nextSpawn = 0.0f;
     if (nextSpawn == 0.0f) {
-        std::uniform_real_distribution<float> distDelay(3.0f, 10.0f);
+        std::uniform_real_distribution<float> distDelay(hardcore ? 1.5f : 3.0f, hardcore ? 5.0f : 10.0f);
         nextSpawn = distDelay(rng);
     }
 
@@ -125,14 +132,14 @@ void MobSpawner::updateNightSpawning(World& world, std::vector<std::unique_ptr<M
     if (spawnTimer < nextSpawn) return;
     spawnTimer = 0.0f;
 
-    std::uniform_real_distribution<float> distDelay(3.0f, 10.0f);
+    std::uniform_real_distribution<float> distDelay(hardcore ? 1.5f : 3.0f, hardcore ? 5.0f : 10.0f);
     nextSpawn = distDelay(rng);
 
     std::uniform_int_distribution<int> distType(0, 3);
     int roll = distType(rng);
     if (roll < 2) {
-        spawnZombies(world, mobs, player, rng);
+        spawnZombies(world, mobs, player, rng, difficulty);
     } else {
-        spawnSlimes(world, mobs, player, rng);
+        spawnSlimes(world, mobs, player, rng, difficulty);
     }
 }

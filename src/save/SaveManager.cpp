@@ -56,6 +56,10 @@ SlotInfo SaveManager::getSlotInfo(int slot) {
     } catch (...) {
         info.seed = 0;
     }
+    std::string diffStr;
+    std::getline(file, diffStr);
+    if (diffStr == "Hardcore") info.difficulty = Difficulty::Hardcore;
+    else info.difficulty = Difficulty::Normal;
     return info;
 }
 
@@ -67,16 +71,19 @@ bool SaveManager::saveSlotMeta(int slot, const SlotInfo& info) {
     file << info.name << "\n";
     file << worldSizeName(info.size) << "\n";
     file << info.seed << "\n";
+    file << difficultyName(info.difficulty) << "\n";
     return true;
 }
 
 bool SaveManager::saveSlot(int slot, const World& world, const Player& player,
-                           const std::string& name, WorldSize size, unsigned int seed, float dayTime) {
+                           const std::string& name, WorldSize size, unsigned int seed,
+                           Difficulty difficulty, float dayTime) {
     ensureDir("saves");
     ensureDir(getSlotPath(slot));
     SlotInfo info;
     info.name = name;
     info.size = size;
+    info.difficulty = difficulty;
     info.seed = seed;
     info.occupied = true;
     if (!saveSlotMeta(slot, info))
@@ -177,6 +184,11 @@ bool SaveManager::save(const World& world, const Player& player, const std::stri
     }
 
     file << "END\n";
+    file.flush();
+    if (!file.good()) {
+        std::cerr << "Failed to write save file (disk full?): " << filepath << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -200,60 +212,59 @@ bool SaveManager::load(World& world, Player& player, const std::string& filepath
     while (std::getline(file, line)) {
         std::istringstream iss(line);
         std::string keyword;
-        iss >> keyword;
+        if (!(iss >> keyword)) continue;
 
         if (keyword == "WORLD") {
             int w, h;
-            iss >> w >> h;
-            if (w > 0 && h > 0 && w <= 8192 && h <= 4096) {
+            if (iss >> w >> h && w > 0 && h > 0 && w <= 8192 && h <= 4096) {
                 constants::WORLD_WIDTH = w;
                 constants::WORLD_HEIGHT = h;
             }
         } else if (keyword == "DAY_TIME") {
             float dt;
-            iss >> dt;
-            if (dt >= 0.0f) dayTime = dt;
+            if (iss >> dt && dt >= 0.0f) dayTime = dt;
         } else if (keyword == "PLAYER") {
             float x, y;
-            iss >> x >> y;
-            player.setPosition({x, y});
-            player.setVelocity({0, 0});
+            if (iss >> x >> y) {
+                player.setPosition({x, y});
+                player.setVelocity({0, 0});
+            }
         } else if (keyword == "TILE") {
             int tx, ty, tileId;
-            iss >> tx >> ty >> tileId;
-            world.setTile(tx, ty, static_cast<TileId>(tileId));
+            if (iss >> tx >> ty >> tileId && tileId >= 0 && tileId <= 55)
+                world.setTile(tx, ty, static_cast<TileId>(tileId));
         } else if (keyword == "WATER") {
             int tx, ty, amount;
-            iss >> tx >> ty >> amount;
-            world.setWater(tx, ty, static_cast<uint8_t>(amount));
+            if (iss >> tx >> ty >> amount)
+                world.setWater(tx, ty, static_cast<uint8_t>(amount));
         } else if (keyword == "LAVA") {
             int tx, ty, amount;
-            iss >> tx >> ty >> amount;
-            world.setLava(tx, ty, static_cast<uint8_t>(amount));
+            if (iss >> tx >> ty >> amount)
+                world.setLava(tx, ty, static_cast<uint8_t>(amount));
         } else if (keyword == "WALL") {
             int tx, ty, wallId;
-            iss >> tx >> ty >> wallId;
-            world.setWall(tx, ty, static_cast<TileId>(wallId));
+            if (iss >> tx >> ty >> wallId && wallId >= 0 && wallId <= 55)
+                world.setWall(tx, ty, static_cast<TileId>(wallId));
         } else if (keyword == "DOOR_OPEN") {
             int tx, ty;
-            iss >> tx >> ty;
-            world.setDoorOpen(tx, ty, true);
+            if (iss >> tx >> ty)
+                world.setDoorOpen(tx, ty, true);
         } else if (keyword == "INVENTORY") {
             int slotIdx, tileId, count;
-            iss >> slotIdx >> tileId >> count;
-            if (slotIdx >= 0 && slotIdx < constants::INVENTORY_SLOTS) {
+            if (iss >> slotIdx >> tileId >> count && slotIdx >= 0 &&
+                slotIdx < constants::INVENTORY_SLOTS && tileId >= 0 && tileId <= 55) {
                 player.getInventory().getSlots()[slotIdx] = {
                     static_cast<TileId>(tileId), count
                 };
             }
         } else if (keyword == "SELECTED") {
             int idx;
-            iss >> idx;
-            player.getInventory().selectSlot(idx);
+            if (iss >> idx)
+                player.getInventory().selectSlot(idx);
         } else if (keyword == "CHEST") {
             int tx, ty, slotIdx, tileId, count;
-            iss >> tx >> ty >> slotIdx >> tileId >> count;
-            if (slotIdx >= 0 && slotIdx < CHEST_SLOTS) {
+            if (iss >> tx >> ty >> slotIdx >> tileId >> count &&
+                slotIdx >= 0 && slotIdx < CHEST_SLOTS && tileId >= 0 && tileId <= 55) {
                 auto& chest = world.getChest(tx, ty);
                 chest[slotIdx] = {static_cast<TileId>(tileId), count};
             }

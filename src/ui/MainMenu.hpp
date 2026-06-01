@@ -12,6 +12,7 @@ struct MenuResult {
     int slot = -1;
     std::string worldName;
     WorldSize worldSize = WorldSize::Medium;
+    Difficulty difficulty = Difficulty::Normal;
 };
 
 class MainMenu {
@@ -31,12 +32,13 @@ private:
     int m_selectedOption = 0;
 
     int m_mainOptionCount = 4;
-    int m_newGameOptionCount = 4; 
+    int m_newGameOptionCount = 5; 
     int m_loadGameOptionCount = 6; 
 
     std::string m_worldName;
     bool m_editingName = false;
-    int m_worldSizeIndex = 1; 
+    int m_worldSizeIndex = 1;
+    int m_difficultyIndex = 0;
     int m_selectedSlot = -1;
 
     std::array<SlotInfo, SaveManager::SLOT_COUNT> m_slots{};
@@ -47,4 +49,5 @@ private:
     int m_confirmDeleteSlot = -1;
 
     static const char* worldSizeText(int index);
+    static const char* difficultyText(int index);
 };

@@ -40,6 +40,18 @@ static void drawTileOverlay(int x, int y, Color color, int height = 3) {
     DrawRectangle(x, y, constants::TILE_SIZE, height, color);
 }
 
+static const Chunk* cachedChunk(const World& world, int tileX, int tileY,
+                                 int& prevCX, int& prevCY, const Chunk*& chunk) {
+    int cx = math::chunkFromTile(tileX);
+    int cy = math::chunkFromTile(tileY);
+    if (cx != prevCX || cy != prevCY) {
+        chunk = world.getChunk(cx, cy);
+        prevCX = cx;
+        prevCY = cy;
+    }
+    return chunk;
+}
+
 void RenderSystem::renderWorld(const World& world, const Camera2D& camera) {
     float viewLeft   = camera.target.x - camera.offset.x;
     float viewTop    = camera.target.y - camera.offset.y;
@@ -54,15 +66,27 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera) {
     auto& registry = TileRegistry::instance();
     auto& texMgr = TextureManager::instance();
 
-    for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
-        for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
-            TileId wall = world.getWall(tileX, tileY);
-            if (wall != TileId::Air) {
+    {
+        int prevCX = -999, prevCY = -999;
+        const Chunk* chunk = nullptr;
+
+        for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
+            for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
+                if (!cachedChunk(world, tileX, tileY, prevCX, prevCY, chunk))
+                    continue;
+
+                int lx = math::localTileInChunk(tileX);
+                int ly = math::localTileInChunk(tileY);
+
+                TileId wall = chunk->getWall(lx, ly);
+                if (wall == TileId::Air)
+                    continue;
+
                 int px = static_cast<int>(math::tileToWorldX(tileX));
                 int py = static_cast<int>(math::tileToWorldY(tileY));
-                TileId foreground = world.getTile(tileX, tileY);
+                TileId foreground = chunk->getTile(lx, ly);
                 unsigned char wallAlpha = (foreground == TileId::Air ||
-                    !world.isSolid(tileX, tileY) || foreground == TileId::Door) ? 200 : 40;
+                    !registry.get(foreground).solid || foreground == TileId::Door) ? 200 : 40;
                 const Texture2D& wtex = texMgr.getTexture(wall);
                 if (wtex.id > 0) {
                     DrawTexture(wtex, px, py, Color{255, 255, 255, wallAlpha});
@@ -75,175 +99,213 @@ void RenderSystem::renderWorld(const World& world, const Camera2D& camera) {
         }
     }
 
-    for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
-        for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
-            TileId id = world.getTile(tileX, tileY);
-            if (id == TileId::Air)
-                continue;
+    {
+        int prevCX = -999, prevCY = -999;
+        const Chunk* chunk = nullptr;
 
-            int px = static_cast<int>(math::tileToWorldX(tileX));
-            int py = static_cast<int>(math::tileToWorldY(tileY));
+        for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
+            for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
+                if (!cachedChunk(world, tileX, tileY, prevCX, prevCY, chunk))
+                    continue;
 
-            const Texture2D& tex = (id == TileId::Door && world.isDoorOpen(tileX, tileY))
-                ? texMgr.getDoorOpenTexture()
-                : texMgr.getTexture(id);
-            if (tex.id > 0) {
-                if (id == TileId::Door && tex.height > constants::TILE_SIZE) {
-                    Rectangle source = {0, 0, static_cast<float>(constants::TILE_SIZE), static_cast<float>(constants::TILE_SIZE)};
-                    if (world.isInBounds(tileX, tileY + 1) && world.getTile(tileX, tileY + 1) == TileId::Door) {
-                        source.y = 0.0f;
-                    } else if (world.isInBounds(tileX, tileY - 1) && world.getTile(tileX, tileY - 1) == TileId::Door) {
-                        source.y = static_cast<float>(constants::TILE_SIZE);
-                    }
-                    DrawTextureRec(tex, source, {static_cast<float>(px), static_cast<float>(py)}, WHITE);
-                } else if (id == TileId::WoodenTable && tex.width > constants::TILE_SIZE) {
-                    Rectangle source = {0, 0, static_cast<float>(constants::TILE_SIZE), static_cast<float>(constants::TILE_SIZE)};
-                    bool right = world.isInBounds(tileX+1, tileY) && world.getTile(tileX+1, tileY) == TileId::WoodenTable;
-                    bool left  = world.isInBounds(tileX-1, tileY) && world.getTile(tileX-1, tileY) == TileId::WoodenTable;
-                    bool down  = world.isInBounds(tileX, tileY+1) && world.getTile(tileX, tileY+1) == TileId::WoodenTable;
-                    bool up    = world.isInBounds(tileX, tileY-1) && world.getTile(tileX, tileY-1) == TileId::WoodenTable;
-                    if (right && down) {
-                        source.x = 0; source.y = 0;
-                    } else if (left && down) {
-                        source.x = static_cast<float>(constants::TILE_SIZE); source.y = 0;
-                    } else if (right && up) {
-                        source.x = 0; source.y = static_cast<float>(constants::TILE_SIZE);
-                    } else if (left && up) {
-                        source.x = static_cast<float>(constants::TILE_SIZE); source.y = static_cast<float>(constants::TILE_SIZE);
-                    }
-                    DrawTextureRec(tex, source, {static_cast<float>(px), static_cast<float>(py)}, WHITE);
-                } else {
-                    DrawTexture(tex, px, py, WHITE);
-                }
-            } else {
-                const auto& def = registry.get(id);
-                DrawRectangle(px, py, constants::TILE_SIZE, constants::TILE_SIZE, def.color);
-            }
+                int lx = math::localTileInChunk(tileX);
+                int ly = math::localTileInChunk(tileY);
 
-            switch (id) {
-                case TileId::Grass:
-                    drawTileOverlay(px, py, Color{50, 140, 40, 255}, 4);
-                    break;
-                case TileId::MushroomGrass:
-                    drawTileOverlay(px, py, Color{130, 40, 180, 255}, 4);
-                    break;
-                case TileId::SnowBlock:
-                    drawTileOverlay(px, py, Color{240, 248, 255, 255}, 2);
-                    break;
-                case TileId::Sand:
-                    drawTileOverlay(px, py, Color{220, 200, 150, 255}, 1);
-                    break;
-                case TileId::Ice:
-                    DrawRectangle(px, py, constants::TILE_SIZE, constants::TILE_SIZE,
-                                  Color{180, 220, 240, 100});
-                    break;
-                case TileId::CopperOre:
-                case TileId::IronOre:
-                case TileId::GoldOre: {
-                    int cpx = px + constants::TILE_SIZE / 2;
-                    int cpy = py + constants::TILE_SIZE / 2;
-                    Color oreColor;
-                    Color oreHighlight;
-                    if (id == TileId::CopperOre) {
-                        oreColor = {200, 120, 60, 255};
-                        oreHighlight = {180, 100, 50, 255};
-                    } else if (id == TileId::IronOre) {
-                        oreColor = {200, 170, 120, 255};
-                        oreHighlight = {180, 150, 100, 255};
+                TileId id = chunk->getTile(lx, ly);
+                if (id == TileId::Air)
+                    continue;
+
+                int px = static_cast<int>(math::tileToWorldX(tileX));
+                int py = static_cast<int>(math::tileToWorldY(tileY));
+
+                bool doorOpen = chunk->isDoorOpen(lx, ly);
+                const Texture2D& tex = (id == TileId::Door && doorOpen)
+                    ? texMgr.getDoorOpenTexture()
+                    : texMgr.getTexture(id);
+                if (tex.id > 0) {
+                    if (id == TileId::Door && tex.height > constants::TILE_SIZE) {
+                        Rectangle source = {0, 0, static_cast<float>(constants::TILE_SIZE), static_cast<float>(constants::TILE_SIZE)};
+                        TileId below = (ly < constants::CHUNK_SIZE - 1)
+                            ? chunk->getTile(lx, ly + 1)
+                            : world.getTile(tileX, tileY + 1);
+                        TileId above = (ly > 0)
+                            ? chunk->getTile(lx, ly - 1)
+                            : world.getTile(tileX, tileY - 1);
+                        if (below == TileId::Door) {
+                            source.y = 0.0f;
+                        } else if (above == TileId::Door) {
+                            source.y = static_cast<float>(constants::TILE_SIZE);
+                        }
+                        DrawTextureRec(tex, source, {static_cast<float>(px), static_cast<float>(py)}, WHITE);
+                    } else if (id == TileId::WoodenTable && tex.width > constants::TILE_SIZE) {
+                        Rectangle source = {0, 0, static_cast<float>(constants::TILE_SIZE), static_cast<float>(constants::TILE_SIZE)};
+                        bool right = (lx < constants::CHUNK_SIZE - 1)
+                            ? (chunk->getTile(lx + 1, ly) == TileId::WoodenTable)
+                            : world.getTile(tileX + 1, tileY) == TileId::WoodenTable;
+                        bool left  = (lx > 0)
+                            ? (chunk->getTile(lx - 1, ly) == TileId::WoodenTable)
+                            : world.getTile(tileX - 1, tileY) == TileId::WoodenTable;
+                        bool down  = (ly < constants::CHUNK_SIZE - 1)
+                            ? (chunk->getTile(lx, ly + 1) == TileId::WoodenTable)
+                            : world.getTile(tileX, tileY + 1) == TileId::WoodenTable;
+                        bool up    = (ly > 0)
+                            ? (chunk->getTile(lx, ly - 1) == TileId::WoodenTable)
+                            : world.getTile(tileX, tileY - 1) == TileId::WoodenTable;
+                        if (right && down) {
+                            source.x = 0; source.y = 0;
+                        } else if (left && down) {
+                            source.x = static_cast<float>(constants::TILE_SIZE); source.y = 0;
+                        } else if (right && up) {
+                            source.x = 0; source.y = static_cast<float>(constants::TILE_SIZE);
+                        } else if (left && up) {
+                            source.x = static_cast<float>(constants::TILE_SIZE); source.y = static_cast<float>(constants::TILE_SIZE);
+                        }
+                        DrawTextureRec(tex, source, {static_cast<float>(px), static_cast<float>(py)}, WHITE);
                     } else {
-                        oreColor = {255, 215, 0, 255};
-                        oreHighlight = {220, 200, 40, 255};
+                        DrawTexture(tex, px, py, WHITE);
                     }
-                    DrawCircle(cpx, cpy, 3, oreColor);
-                    DrawCircle(cpx - 2, cpy - 2, 2, oreHighlight);
-                    break;
+                } else {
+                    const auto& def = registry.get(id);
+                    DrawRectangle(px, py, constants::TILE_SIZE, constants::TILE_SIZE, def.color);
                 }
-                case TileId::Wood:
-                    drawTileOverlay(px, py, Color{80, 50, 30, 255}, 2);
-                    break;
-                case TileId::Leaf:
-                    drawTileOverlay(px, py, Color{30, 120, 30, 255}, 2);
-                    break;
-                case TileId::Granite:
-                    drawTileOverlay(px, py, Color{100, 90, 110, 255}, 1);
-                    break;
-                case TileId::Marble:
-                    drawTileOverlay(px, py, Color{220, 220, 230, 255}, 1);
-                    break;
-                case TileId::JungleGrass:
-                    drawTileOverlay(px, py, Color{30, 120, 30, 255}, 4);
-                    break;
-                case TileId::Mud:
-                    drawTileOverlay(px, py, Color{80, 60, 40, 255}, 1);
-                    break;
-                case TileId::Hellstone:
-                    drawTileOverlay(px, py, Color{255, 100, 50, 100}, 2);
-                    break;
-                case TileId::Planks:
-                    drawTileOverlay(px, py, Color{130, 90, 50, 255}, 1);
-                    break;
-                case TileId::Torch:
-                    DrawCircle(px + constants::TILE_SIZE / 2, py + constants::TILE_SIZE / 2,
-                               constants::TILE_SIZE * 2.5f,
-                               Color{255, 200, 50, 30});
-                    DrawCircle(px + constants::TILE_SIZE / 2, py + constants::TILE_SIZE / 2,
-                               constants::TILE_SIZE * 1.5f,
-                               Color{255, 220, 100, 50});
-                    DrawCircle(px + constants::TILE_SIZE / 2, py + constants::TILE_SIZE / 2,
-                               constants::TILE_SIZE * 0.8f,
-                               Color{255, 230, 150, 80});
-                    break;
-                default:
-                    break;
+
+                switch (id) {
+                    case TileId::Grass:
+                        drawTileOverlay(px, py, Color{50, 140, 40, 255}, 4);
+                        break;
+                    case TileId::MushroomGrass:
+                        drawTileOverlay(px, py, Color{130, 40, 180, 255}, 4);
+                        break;
+                    case TileId::SnowBlock:
+                        drawTileOverlay(px, py, Color{240, 248, 255, 255}, 2);
+                        break;
+                    case TileId::Sand:
+                        drawTileOverlay(px, py, Color{220, 200, 150, 255}, 1);
+                        break;
+                    case TileId::Ice:
+                        DrawRectangle(px, py, constants::TILE_SIZE, constants::TILE_SIZE,
+                                      Color{180, 220, 240, 100});
+                        break;
+                    case TileId::CopperOre:
+                    case TileId::IronOre:
+                    case TileId::GoldOre: {
+                        int cpx = px + constants::TILE_SIZE / 2;
+                        int cpy = py + constants::TILE_SIZE / 2;
+                        Color oreColor;
+                        Color oreHighlight;
+                        if (id == TileId::CopperOre) {
+                            oreColor = {200, 120, 60, 255};
+                            oreHighlight = {180, 100, 50, 255};
+                        } else if (id == TileId::IronOre) {
+                            oreColor = {200, 170, 120, 255};
+                            oreHighlight = {180, 150, 100, 255};
+                        } else {
+                            oreColor = {255, 215, 0, 255};
+                            oreHighlight = {220, 200, 40, 255};
+                        }
+                        DrawCircle(cpx, cpy, 3, oreColor);
+                        DrawCircle(cpx - 2, cpy - 2, 2, oreHighlight);
+                        break;
+                    }
+                    case TileId::Wood:
+                        drawTileOverlay(px, py, Color{80, 50, 30, 255}, 2);
+                        break;
+                    case TileId::Leaf:
+                        drawTileOverlay(px, py, Color{30, 120, 30, 255}, 2);
+                        break;
+                    case TileId::Granite:
+                        drawTileOverlay(px, py, Color{100, 90, 110, 255}, 1);
+                        break;
+                    case TileId::Marble:
+                        drawTileOverlay(px, py, Color{220, 220, 230, 255}, 1);
+                        break;
+                    case TileId::JungleGrass:
+                        drawTileOverlay(px, py, Color{30, 120, 30, 255}, 4);
+                        break;
+                    case TileId::Mud:
+                        drawTileOverlay(px, py, Color{80, 60, 40, 255}, 1);
+                        break;
+                    case TileId::Hellstone:
+                        drawTileOverlay(px, py, Color{255, 100, 50, 100}, 2);
+                        break;
+                    case TileId::Planks:
+                        drawTileOverlay(px, py, Color{130, 90, 50, 255}, 1);
+                        break;
+                    case TileId::Torch:
+                        DrawCircle(px + constants::TILE_SIZE / 2, py + constants::TILE_SIZE / 2,
+                                   constants::TILE_SIZE * 2.5f,
+                                   Color{255, 200, 50, 30});
+                        DrawCircle(px + constants::TILE_SIZE / 2, py + constants::TILE_SIZE / 2,
+                                   constants::TILE_SIZE * 1.5f,
+                                   Color{255, 220, 100, 50});
+                        DrawCircle(px + constants::TILE_SIZE / 2, py + constants::TILE_SIZE / 2,
+                                   constants::TILE_SIZE * 0.8f,
+                                   Color{255, 230, 150, 80});
+                        break;
+                    default:
+                        break;
+                }
             }
         }
     }
 
-    for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
-        for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
-            uint8_t water = world.getWater(tileX, tileY);
-            uint8_t lava = world.getLava(tileX, tileY);
-            if (water == 0 && lava == 0) continue;
+    {
+        int prevCX = -999, prevCY = -999;
+        const Chunk* chunk = nullptr;
 
-            int px = static_cast<int>(math::tileToWorldX(tileX));
-            int py = static_cast<int>(math::tileToWorldY(tileY));
+        for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
+            for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
+                if (!cachedChunk(world, tileX, tileY, prevCX, prevCY, chunk))
+                    continue;
 
-            if (world.isSolid(tileX, tileY))
-                continue;
+                int lx = math::localTileInChunk(tileX);
+                int ly = math::localTileInChunk(tileY);
 
-            if (water > 0) {
-                float fill = static_cast<float>(water) / static_cast<float>(MAX_LIQUID_LEVEL);
-                int liquidH = std::max(1, static_cast<int>(constants::TILE_SIZE * fill));
-                int liquidY = py + constants::TILE_SIZE - liquidH;
-                unsigned char alpha = static_cast<unsigned char>(100 + 80 * fill);
-                DrawRectangle(px, liquidY, constants::TILE_SIZE, liquidH,
-                              Color{40, 120, 220, alpha});
+                uint8_t water = chunk->getWater(lx, ly);
+                uint8_t lava = chunk->getLava(lx, ly);
+                if (water == 0 && lava == 0) continue;
 
-                bool isTopSurface = tileY - 1 < 0 ||
-                    (!world.isInBounds(tileX, tileY - 1)) ||
-                    (world.isSolid(tileX, tileY - 1)) ||
-                    world.getWater(tileX, tileY - 1) == 0;
-                if (fill > 0.5f && isTopSurface) {
-                    DrawRectangle(px, liquidY, constants::TILE_SIZE, 1,
-                                  Color{80, 160, 255, alpha});
+                TileId tile = chunk->getTile(lx, ly);
+                if (registry.get(tile).solid)
+                    continue;
+
+                int px = static_cast<int>(math::tileToWorldX(tileX));
+                int py = static_cast<int>(math::tileToWorldY(tileY));
+
+                if (water > 0) {
+                    float fill = static_cast<float>(water) / static_cast<float>(MAX_LIQUID_LEVEL);
+                    int liquidH = std::max(1, static_cast<int>(constants::TILE_SIZE * fill));
+                    int liquidY = py + constants::TILE_SIZE - liquidH;
+                    unsigned char alpha = static_cast<unsigned char>(100 + 80 * fill);
+                    DrawRectangle(px, liquidY, constants::TILE_SIZE, liquidH,
+                                  Color{40, 120, 220, alpha});
+
+                    uint8_t aboveWater = (ly > 0)
+                        ? chunk->getWater(lx, ly - 1)
+                        : world.getWater(tileX, tileY - 1);
+                    bool isTopSurface = tileY - 1 < 0 || aboveWater == 0;
+                    if (fill > 0.5f && isTopSurface) {
+                        DrawRectangle(px, liquidY, constants::TILE_SIZE, 1,
+                                      Color{80, 160, 255, alpha});
+                    }
                 }
-            }
 
-            if (lava > 0) {
-                float fill = static_cast<float>(lava) / static_cast<float>(MAX_LIQUID_LEVEL);
-                int liquidH = std::max(1, static_cast<int>(constants::TILE_SIZE * fill));
-                int liquidY = py + constants::TILE_SIZE - liquidH;
-                unsigned char alpha = static_cast<unsigned char>(180 + 75 * fill);
-                DrawRectangle(px, liquidY, constants::TILE_SIZE, liquidH,
-                              Color{255, 80, 0, alpha});
+                if (lava > 0) {
+                    float fill = static_cast<float>(lava) / static_cast<float>(MAX_LIQUID_LEVEL);
+                    int liquidH = std::max(1, static_cast<int>(constants::TILE_SIZE * fill));
+                    int liquidY = py + constants::TILE_SIZE - liquidH;
+                    unsigned char alpha = static_cast<unsigned char>(180 + 75 * fill);
+                    DrawRectangle(px, liquidY, constants::TILE_SIZE, liquidH,
+                                  Color{255, 80, 0, alpha});
 
-                bool isTopSurface = tileY - 1 < 0 ||
-                    (!world.isInBounds(tileX, tileY - 1)) ||
-                    (world.isSolid(tileX, tileY - 1)) ||
-                    world.getLava(tileX, tileY - 1) == 0;
-                if (fill > 0.5f && isTopSurface) {
-                    DrawRectangle(px, liquidY, constants::TILE_SIZE, 1,
-                                  Color{255, 180, 50, alpha});
+                    uint8_t aboveLava = (ly > 0)
+                        ? chunk->getLava(lx, ly - 1)
+                        : world.getLava(tileX, tileY - 1);
+                    bool isTopSurface = tileY - 1 < 0 || aboveLava == 0;
+                    if (fill > 0.5f && isTopSurface) {
+                        DrawRectangle(px, liquidY, constants::TILE_SIZE, 1,
+                                      Color{255, 180, 50, alpha});
+                    }
                 }
             }
         }
@@ -304,12 +366,23 @@ void RenderSystem::renderLightingOverlay(const World& world,
     int startTileY = std::max(0, math::worldToTileY(viewTop) - 2);
     int endTileY   = std::min(constants::WORLD_HEIGHT - 1, math::worldToTileY(viewBottom) + 2);
 
-    for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
-        for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
-            if (world.getTile(tileX, tileY) == TileId::Torch) {
-                float cx = math::tileToWorldX(tileX) + constants::TILE_SIZE / 2.0f;
-                float cy = math::tileToWorldY(tileY) + constants::TILE_SIZE / 2.0f;
-                lights.push_back({cx, cy, TORCH_RADIUS, 1.0f});
+    {
+        int prevCX = -999, prevCY = -999;
+        const Chunk* chunk = nullptr;
+
+        for (int tileX = startTileX; tileX <= endTileX; ++tileX) {
+            for (int tileY = startTileY; tileY <= endTileY; ++tileY) {
+                if (!cachedChunk(world, tileX, tileY, prevCX, prevCY, chunk))
+                    continue;
+
+                int lx = math::localTileInChunk(tileX);
+                int ly = math::localTileInChunk(tileY);
+
+                if (chunk->getTile(lx, ly) == TileId::Torch) {
+                    float cx = math::tileToWorldX(tileX) + constants::TILE_SIZE / 2.0f;
+                    float cy = math::tileToWorldY(tileY) + constants::TILE_SIZE / 2.0f;
+                    lights.push_back({cx, cy, TORCH_RADIUS, 1.0f});
+                }
             }
         }
     }

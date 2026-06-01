@@ -147,7 +147,9 @@ void GameRenderer::renderWorldAndEntities(GameSession& session, const Camera2D& 
         mob->render();
     }
     particles.render();
-    player.render();
+    if (session.getDeathTimer() <= 0.0f) {
+        player.render();
+    }
 
     Vector2 playerCenter = {
         player.getPosition().x + player.getBounds().width / 2.0f,

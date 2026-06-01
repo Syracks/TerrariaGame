@@ -3,6 +3,7 @@
 
 #include <random>
 #include <cmath>
+#include <algorithm>
 
 void ParticleSystem::emit(Vector2 pos, Vector2 vel, Color color, float life, float size, int count) {
     static std::mt19937 rng(std::random_device{}());
@@ -25,16 +26,17 @@ void ParticleSystem::emit(Vector2 pos, Vector2 vel, Color color, float life, flo
 }
 
 void ParticleSystem::update(float dt) {
-    for (auto it = m_particles.begin(); it != m_particles.end(); ) {
-        it->life -= dt;
-        if (it->life <= 0.0f) {
-            it = m_particles.erase(it);
+    for (size_t i = 0; i < m_particles.size(); ) {
+        m_particles[i].life -= dt;
+        if (m_particles[i].life <= 0.0f) {
+            std::swap(m_particles[i], m_particles.back());
+            m_particles.pop_back();
             continue;
         }
-        it->position.x += it->velocity.x * dt;
-        it->position.y += it->velocity.y * dt;
-        it->velocity.y += constants::GRAVITY * 0.3f * dt;
-        ++it;
+        m_particles[i].position.x += m_particles[i].velocity.x * dt;
+        m_particles[i].position.y += m_particles[i].velocity.y * dt;
+        m_particles[i].velocity.y += constants::GRAVITY * 0.3f * dt;
+        ++i;
     }
 }
 

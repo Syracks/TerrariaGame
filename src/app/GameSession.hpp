@@ -14,9 +14,10 @@ class GameSession {
 public:
     GameSession();
 
-    void newWorld(const std::string& name, WorldSize size, int slot, unsigned int seed);
+    void newWorld(const std::string& name, WorldSize size, int slot, unsigned int seed, Difficulty difficulty = Difficulty::Normal);
     void adoptWorld(std::unique_ptr<World> world, std::unique_ptr<Player> player,
-                    int slot, WorldSize size, const std::string& name, unsigned int seed);
+                    int slot, WorldSize size, const std::string& name, unsigned int seed,
+                    Difficulty difficulty = Difficulty::Normal);
     void clear();
 
     World& getWorld() { return *m_world; }
@@ -30,6 +31,7 @@ public:
     Minimap& getMinimap() { return *m_minimap; }
     const Minimap& getMinimap() const { return *m_minimap; }
     bool isMinimapVisible() const { return m_minimapVisible; }
+    void setMinimapVisible(bool v) { m_minimapVisible = v; }
     void toggleMinimap() { m_minimapVisible = !m_minimapVisible; }
 
     float getDayTime() const { return m_dayTime; }
@@ -41,6 +43,8 @@ public:
 
     int getCurrentSlot() const { return m_currentSlot; }
     WorldSize getWorldSize() const { return m_worldSize; }
+    Difficulty getDifficulty() const { return m_difficulty; }
+    void setDifficulty(Difficulty d) { m_difficulty = d; }
     const std::string& getWorldName() const { return m_worldName; }
     unsigned int getSeed() const { return m_seed; }
 
@@ -58,6 +62,7 @@ private:
     float m_deathTimer = 0.0f;
     int m_currentSlot = -1;
     WorldSize m_worldSize = WorldSize::Medium;
+    Difficulty m_difficulty = Difficulty::Normal;
     std::string m_worldName;
     unsigned int m_seed = 0;
 

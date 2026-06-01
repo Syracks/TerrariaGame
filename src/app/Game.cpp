@@ -47,6 +47,7 @@ void Game::init() {
 
     InitAudioDevice();
     SoundManager::instance().loadAll();
+    SoundManager::instance().setMasterVolume(m_settingsMenu.getVolume());
 
     m_renderer.init();
 
@@ -127,14 +128,15 @@ void Game::handleInput() {
         auto result = m_menu.update();
         switch (result.type) {
             case MenuResult::StartNewGame:
-                newGame(result.worldName, result.worldSize, result.slot);
+                newGame(result.worldName, result.worldSize, result.slot, result.difficulty);
                 m_state = GameState::Playing;
                 m_menu.setVisible(false);
                 break;
             case MenuResult::LoadSlot:
-                loadGame(result.slot);
-                m_state = GameState::Playing;
-                m_menu.setVisible(false);
+                if (loadGame(result.slot)) {
+                    m_state = GameState::Playing;
+                    m_menu.setVisible(false);
+                }
                 break;
             case MenuResult::Settings:
                 m_state = GameState::Settings;
@@ -296,10 +298,19 @@ void Game::update(float dt) {
         player.setVelocity({0, 0});
     }
 
-    DeathSystem::updateDeath(player, world, m_session.getMobs(),
+    bool respawned = DeathSystem::updateDeath(player, world, m_session.getMobs(),
                               m_session.getDeathTimerRef(), dt,
                               m_session.getParticles(),
                               m_session.getRNG());
+
+    if (respawned && m_session.getDifficulty() == Difficulty::Hardcore) {
+        m_totalKills = 0;
+        SaveManager::deleteSlot(m_session.getCurrentSlot());
+        cleanupWorld();
+        m_state = GameState::MainMenu;
+        m_menu.setVisible(true);
+        return;
+    }
 
     if (player.getHealth() > 0) {
         InteractionSystem::handleSwingCompletion(player, world,
@@ -350,7 +361,8 @@ void Game::update(float dt) {
 
     m_session.getParticles().update(dt);
 
-    MobSpawner::updateNightSpawning(world, mobs, player, m_session.getDayTime(), dt, m_session.getRNG());
+    Difficulty diff = m_session.getDifficulty();
+    MobSpawner::updateNightSpawning(world, mobs, player, m_session.getDayTime(), dt, m_session.getRNG(), diff);
 
     m_autosaveTimer += dt;
     if (m_autosaveTimer >= AUTOSAVE_INTERVAL) {
@@ -359,9 +371,9 @@ void Game::update(float dt) {
     }
 }
 
-void Game::newGame(const std::string& name, WorldSize size, int slot) {
+void Game::newGame(const std::string& name, WorldSize size, int slot, Difficulty difficulty) {
     unsigned int seed = static_cast<unsigned int>(std::time(nullptr));
-    m_session.newWorld(name, size, slot, seed);
+    m_session.newWorld(name, size, slot, seed, difficulty);
 
     auto& world = m_session.getWorld();
     auto& player = m_session.getPlayer();
@@ -426,11 +438,13 @@ void Game::newGame(const std::string& name, WorldSize size, int slot) {
 
     m_session.getMinimap().rebuild(world);
 
-    MobSpawner::spawnSlimes(world, m_session.getMobs(), player, rng);
+    MobSpawner::spawnSlimes(world, m_session.getMobs(), player, rng, difficulty);
 
     Vector2 spawnPos = DeathSystem::findSafeSpawnPosition(world);
     player.setPosition(spawnPos);
     player.setVelocity({0, 0});
+
+    m_session.setMinimapVisible(m_settingsMenu.getShowMinimap());
 
     m_camera.update(player);
 
@@ -440,9 +454,12 @@ void Game::newGame(const std::string& name, WorldSize size, int slot) {
     m_spawnGuard = 10;
 }
 
-void Game::loadGame(int slot) {
+bool Game::loadGame(int slot) {
     std::string dataPath = SaveManager::getSlotDataPath(slot);
-    if (!SaveManager::saveExists(dataPath)) return;
+    if (!SaveManager::saveExists(dataPath)) {
+        std::cerr << "No save data found for slot " << slot << std::endl;
+        return false;
+    }
 
     SlotInfo info = SaveManager::getSlotInfo(slot);
     WorldDimensions dims = getWorldDimensions(info.size);
@@ -454,16 +471,21 @@ void Game::loadGame(int slot) {
     player->load();
 
     float dayTime = 0.0f;
-    SaveManager::loadSlot(slot, *world, *player, dayTime);
+    if (!SaveManager::loadSlot(slot, *world, *player, dayTime)) {
+        std::cerr << "Failed to load save data for slot " << slot << std::endl;
+        return false;
+    }
 
-    m_session.adoptWorld(std::move(world), std::move(player), slot, info.size, info.name, info.seed);
+    m_session.adoptWorld(std::move(world), std::move(player), slot, info.size, info.name, info.seed, info.difficulty);
     m_session.setDayTime(dayTime);
 
     m_session.getMinimap().rebuild(m_session.getWorld());
+    m_session.setMinimapVisible(m_settingsMenu.getShowMinimap());
 
     m_camera.update(m_session.getPlayer());
 
     m_spawnGuard = 0;
+    return true;
 }
 
 void Game::saveGame() {
@@ -471,7 +493,8 @@ void Game::saveGame() {
     if (slot < 0) return;
     if (!SaveManager::saveSlot(slot, m_session.getWorld(), m_session.getPlayer(),
                                m_session.getWorldName(), m_session.getWorldSize(),
-                               m_session.getSeed(), m_session.getDayTime()))
+                               m_session.getSeed(), m_session.getDifficulty(),
+                               m_session.getDayTime()))
         std::cerr << "Failed to save game to slot " << slot << "!" << std::endl;
     else
         std::cout << "Game saved to slot " << slot << "." << std::endl;

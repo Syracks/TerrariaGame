@@ -15,6 +15,8 @@ void MainMenu::setVisible(bool v) {
         m_selectedOption = 0;
         m_editingName = false;
         m_worldName.clear();
+        m_worldSizeIndex = 1;
+        m_difficultyIndex = 0;
         refreshSlots();
     }
 }
@@ -25,6 +27,7 @@ void MainMenu::reset() {
     m_worldName.clear();
     m_editingName = false;
     m_worldSizeIndex = 1;
+    m_difficultyIndex = 0;
     m_selectedSlot = -1;
     m_confirmDeleteSlot = -1;
 }
@@ -39,6 +42,14 @@ const char* MainMenu::worldSizeText(int index) {
         case 1: return "Medium";
         case 2: return "Large";
         default: return "Medium";
+    }
+}
+
+const char* MainMenu::difficultyText(int index) {
+    switch (index) {
+        case 0: return "Normal";
+        case 1: return "Hardcore";
+        default: return "Normal";
     }
 }
 
@@ -133,7 +144,7 @@ MenuResult MainMenu::update() {
         Rectangle nameRect = {static_cast<float>(fieldX), static_cast<float>(yPos),
                               static_cast<float>(fieldW), static_cast<float>(fieldH)};
 
-        yPos += 70;
+        yPos += 60;
 
         Rectangle sizeRects[3];
         int sizeStartX = fieldX;
@@ -147,7 +158,21 @@ MenuResult MainMenu::update() {
             };
         }
 
-        yPos += 70;
+        yPos += 75;
+
+        Rectangle diffRects[2];
+        int diffStartX = fieldX;
+        for (int i = 0; i < 2; ++i) {
+            int sw = 140;
+            diffRects[i] = {
+                static_cast<float>(diffStartX + i * (sw + 16)),
+                static_cast<float>(yPos - 4),
+                static_cast<float>(sw),
+                static_cast<float>(fieldH + 4)
+            };
+        }
+
+        yPos += 60;
 
         int createW = 260;
         int createH = 44;
@@ -156,7 +181,7 @@ MenuResult MainMenu::update() {
             static_cast<float>(createW), static_cast<float>(createH)
         };
 
-        yPos += 70;
+        yPos += 60;
 
         int backW = 120;
         int backH = 36;
@@ -177,8 +202,15 @@ MenuResult MainMenu::update() {
                 m_editingName = false;
             }
         }
+        for (int i = 0; i < 2; ++i) {
+            if (isClicked(diffRects[i])) {
+                m_selectedOption = 2;
+                m_difficultyIndex = i;
+                m_editingName = false;
+            }
+        }
         if (isClicked(createRect)) {
-            m_selectedOption = 2;
+            m_selectedOption = 3;
             m_editingName = false;
             if (m_worldName.empty()) m_worldName = "World";
             int freeSlot = -1;
@@ -195,6 +227,7 @@ MenuResult MainMenu::update() {
                 case 1: result.worldSize = WorldSize::Medium; break;
                 case 2: result.worldSize = WorldSize::Large; break;
             }
+            result.difficulty = (m_difficultyIndex == 1) ? Difficulty::Hardcore : Difficulty::Normal;
             reset();
             return result;
         }
@@ -208,8 +241,9 @@ MenuResult MainMenu::update() {
         if (mouseMoved) {
             if (isHovered(nameRect)) m_selectedOption = 0;
             else if (isHovered(sizeRects[0]) || isHovered(sizeRects[1]) || isHovered(sizeRects[2])) m_selectedOption = 1;
-            else if (isHovered(createRect)) m_selectedOption = 2;
-            else if (isHovered(backRect)) m_selectedOption = 3;
+            else if (isHovered(diffRects[0]) || isHovered(diffRects[1])) m_selectedOption = 2;
+            else if (isHovered(createRect)) m_selectedOption = 3;
+            else if (isHovered(backRect)) m_selectedOption = 4;
         }
 
         
@@ -407,7 +441,7 @@ void MainMenu::render() const {
             DrawText("[Enter to confirm]", fieldX + fieldW + 12, yPos + 10, 16, DARKGRAY);
         }
 
-        yPos += 70;
+        yPos += 60;
 
         DrawText("World Size", fieldX, yPos - 24, 18, Color{150, 150, 160, 255});
 
@@ -433,11 +467,38 @@ void MainMenu::render() const {
                      yPos + 26, 14, Color{80, 80, 100, 255});
         }
 
-        yPos += 70;
+        yPos += 75;
+
+        DrawText("Difficulty", fieldX, yPos - 24, 18, Color{150, 150, 160, 255});
+
+        const char* diffLabels[] = {"Normal", "Hardcore"};
+        const char* diffDescs[] = {"Standard", "Permadeath"};
+        int diffStartX = fieldX;
+
+        for (int i = 0; i < 2; ++i) {
+            int sw = 140;
+            int sh = fieldH + 4;
+            int sx = diffStartX + i * (sw + 16);
+            bool selected = (i == m_difficultyIndex);
+            bool hovered = (m_selectedOption == 2 && selected);
+
+            Color bg = selected ? Color{50, 50, 70, 255} : Color{30, 30, 40, 255};
+            Color border = hovered ? WHITE : (selected ? GREEN : Color{60, 60, 80, 255});
+            Color textC = selected ? WHITE : Color{120, 120, 140, 255};
+
+            DrawRectangle(sx, yPos, sw, sh, bg);
+            DrawRectangleLines(sx, yPos, sw, sh, border);
+            Color hardcoreTint = (i == 1 && selected) ? Color{255, 100, 100, 255} : textC;
+            DrawText(diffLabels[i], sx + (sw - MeasureText(diffLabels[i], 20)) / 2, yPos + 4, 20, hardcoreTint);
+            DrawText(diffDescs[i], sx + (sw - MeasureText(diffDescs[i], 14)) / 2,
+                     yPos + 26, 14, Color{80, 80, 100, 255});
+        }
+
+        yPos += 60;
 
         
-        Color createBg = (m_selectedOption == 2) ? Color{50, 70, 50, 255} : Color{35, 45, 35, 255};
-        Color createBorder = (m_selectedOption == 2) ? GREEN : Color{60, 80, 60, 255};
+        Color createBg = (m_selectedOption == 3) ? Color{50, 70, 50, 255} : Color{35, 45, 35, 255};
+        Color createBorder = (m_selectedOption == 3) ? GREEN : Color{60, 80, 60, 255};
         int createW = 260;
         int createH = 44;
         int createX = (constants::SCREEN_WIDTH - createW) / 2;
@@ -446,13 +507,13 @@ void MainMenu::render() const {
         const char* createText = "Create World";
         DrawText(">", createX - 30, yPos + 10, 24, GREEN);
         DrawText(createText, createX + (createW - MeasureText(createText, 24)) / 2,
-                 yPos + 10, 24, (m_selectedOption == 2) ? WHITE : GRAY);
+                 yPos + 10, 24, (m_selectedOption == 3) ? WHITE : GRAY);
 
-        yPos += 70;
+        yPos += 60;
 
         
-        Color backBg = (m_selectedOption == 3) ? Color{50, 45, 45, 255} : Color{35, 35, 35, 255};
-        Color backBorder = (m_selectedOption == 3) ? Color{180, 100, 100, 255} : Color{60, 60, 60, 255};
+        Color backBg = (m_selectedOption == 4) ? Color{50, 45, 45, 255} : Color{35, 35, 35, 255};
+        Color backBorder = (m_selectedOption == 4) ? Color{180, 100, 100, 255} : Color{60, 60, 60, 255};
         int backW = 120;
         int backH = 36;
         int backX = (constants::SCREEN_WIDTH - backW) / 2;
@@ -460,7 +521,7 @@ void MainMenu::render() const {
         DrawRectangleLines(backX, yPos, backW, backH, backBorder);
         const char* backText = "Back";
         DrawText(backText, backX + (backW - MeasureText(backText, 22)) / 2,
-                 yPos + 7, 22, (m_selectedOption == 3) ? WHITE : GRAY);
+                 yPos + 7, 22, (m_selectedOption == 4) ? WHITE : GRAY);
 
         return;
     }
@@ -492,8 +553,9 @@ void MainMenu::render() const {
 
             if (m_slots[i].occupied) {
                 DrawText(m_slots[i].name.c_str(), slotStartX + 140, yPos + 8, 22, WHITE);
-                const char* sz = worldSizeName(m_slots[i].size);
-                DrawText(sz, slotStartX + 140, yPos + 32, 16, DARKGRAY);
+
+                std::string infoLine = std::string(worldSizeName(m_slots[i].size)) + " - " + difficultyName(m_slots[i].difficulty);
+                DrawText(infoLine.c_str(), slotStartX + 140, yPos + 32, 16, DARKGRAY);
 
                 Rectangle delRect = {
                     static_cast<float>(slotStartX + slotW - 100),
@@ -538,7 +600,7 @@ void MainMenu::render() const {
             DrawText(msg, dialogX + (dialogW - msgW) / 2, dialogY + 30, 24, WHITE);
 
             const SlotInfo& si = m_slots[m_confirmDeleteSlot];
-            std::string info = si.name + " (" + worldSizeName(si.size) + ")";
+            std::string info = si.name + " (" + worldSizeName(si.size) + " - " + difficultyName(si.difficulty) + ")";
             int infoW = MeasureText(info.c_str(), 18);
             DrawText(info.c_str(), dialogX + (dialogW - infoW) / 2, dialogY + 60, 18, Color{180, 180, 180, 255});
 

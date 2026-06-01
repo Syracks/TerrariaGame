@@ -26,8 +26,8 @@ private:
     void handleInput();
     void update(float dt);
     void cleanup();
-    void newGame(const std::string& name, WorldSize size, int slot);
-    void loadGame(int slot);
+    void newGame(const std::string& name, WorldSize size, int slot, Difficulty difficulty = Difficulty::Normal);
+    bool loadGame(int slot);
     void saveGame();
     void cleanupWorld();
     void toggleFullscreen();

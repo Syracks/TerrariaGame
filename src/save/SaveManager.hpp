@@ -10,6 +10,7 @@ class Player;
 struct SlotInfo {
     std::string name;
     WorldSize size = WorldSize::Medium;
+    Difficulty difficulty = Difficulty::Normal;
     unsigned int seed = 0;
     bool occupied = false;
 };
@@ -25,7 +26,8 @@ public:
     static SlotInfo getSlotInfo(int slot);
     static bool saveSlotMeta(int slot, const SlotInfo& info);
     static bool saveSlot(int slot, const World& world, const Player& player,
-                         const std::string& name, WorldSize size, unsigned int seed, float dayTime = 0.0f);
+                         const std::string& name, WorldSize size, unsigned int seed,
+                         Difficulty difficulty = Difficulty::Normal, float dayTime = 0.0f);
     static bool loadSlot(int slot, World& world, Player& player, float& dayTime);
     static void deleteSlot(int slot);
 

@@ -18,9 +18,18 @@ constexpr int HOTBAR_SLOTS = 9;
 constexpr int INVENTORY_SLOTS = 45;
 constexpr int TARGET_FPS = 60;
 
+constexpr int RESOLUTION_COUNT = 4;
+inline const int RESOLUTIONS[RESOLUTION_COUNT][2] = {
+    {1280, 720},
+    {1600, 900},
+    {1920, 1080},
+    {2560, 1440}
+};
+
 }
 
 enum class WorldSize { Small, Medium, Large };
+enum class Difficulty { Normal, Hardcore };
 
 struct WorldDimensions {
     int width;
@@ -42,5 +51,13 @@ inline const char* worldSizeName(WorldSize size) {
         case WorldSize::Medium:  return "Medium";
         case WorldSize::Large:   return "Large";
         default:                 return "Medium";
+    }
+}
+
+inline const char* difficultyName(Difficulty d) {
+    switch (d) {
+        case Difficulty::Normal:   return "Normal";
+        case Difficulty::Hardcore: return "Hardcore";
+        default:                   return "Normal";
     }
 }

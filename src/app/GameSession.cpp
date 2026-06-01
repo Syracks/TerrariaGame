@@ -21,11 +21,12 @@ void GameSession::advanceDayTime(float dt) {
     if (m_dayTime >= CYCLE_LENGTH) m_dayTime -= CYCLE_LENGTH;
 }
 
-void GameSession::newWorld(const std::string& name, WorldSize size, int slot, unsigned int seed) {
+void GameSession::newWorld(const std::string& name, WorldSize size, int slot, unsigned int seed, Difficulty difficulty) {
     WorldDimensions dims = getWorldDimensions(size);
     constants::WORLD_WIDTH = dims.width;
     constants::WORLD_HEIGHT = dims.height;
     m_worldSize = size;
+    m_difficulty = difficulty;
     m_worldName = name;
     m_currentSlot = slot;
     m_seed = seed;
@@ -42,8 +43,10 @@ void GameSession::newWorld(const std::string& name, WorldSize size, int slot, un
 }
 
 void GameSession::adoptWorld(std::unique_ptr<World> world, std::unique_ptr<Player> player,
-                              int slot, WorldSize size, const std::string& name, unsigned int seed) {
+                              int slot, WorldSize size, const std::string& name, unsigned int seed,
+                              Difficulty difficulty) {
     m_worldSize = size;
+    m_difficulty = difficulty;
     m_worldName = name;
     m_currentSlot = slot;
     m_seed = seed;
