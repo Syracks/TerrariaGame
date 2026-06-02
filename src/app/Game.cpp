@@ -237,7 +237,12 @@ void Game::handleInput() {
         m_session.getPlayer().getInventory().selectSlot(current);
     }
 
-    if (input::isSavePressed()) saveGame();
+    if (input::isSavePressed()) {
+        bool bossAlive = false;
+        for (auto& m : m_session.getMobs())
+            if (m->isBoss() && m->getHealth() > 0) { bossAlive = true; break; }
+        if (!bossAlive) saveGame();
+    }
 
     if (input::isMinePressed()) {
         InteractionSystem::handleMinePress(m_session.getPlayer(), m_session.getWorld(),
@@ -269,7 +274,7 @@ void Game::handleInput() {
             for (auto& m : m_session.getMobs()) {
                 if (m->isBoss() && m->getHealth() > 0) { bossAlive = true; break; }
             }
-            if (!bossAlive) {
+            if (!bossAlive && !m_session.isBossSummonRequested()) {
                 float px = player.getPosition().x + player.getBounds().width / 2;
                 int tileX = math::worldToTileX(px);
                 Biome biome = world.getBiome(tileX);
@@ -661,7 +666,10 @@ void Game::update(float dt) {
 
     m_autosaveTimer += dt;
     if (m_autosaveTimer >= AUTOSAVE_INTERVAL) {
-        saveGame();
+        bool bossAlive = false;
+        for (auto& m : mobs)
+            if (m->isBoss() && m->getHealth() > 0) { bossAlive = true; break; }
+        if (!bossAlive) saveGame();
         m_autosaveTimer = 0.0f;
     }
 }
