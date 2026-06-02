@@ -67,6 +67,11 @@ ItemDatabase::ItemDatabase() {
     m_items[TileId::Door]          = def(TileId::Door,          "Door",          1, true,  false, tool(0,0,0));
     m_items[TileId::WoodenChair]   = def(TileId::WoodenChair,   "Wooden Chair",  1, true,  false, tool(0,0,0));
     m_items[TileId::WoodenTable]   = def(TileId::WoodenTable,   "Wooden Table",  1, true,  false, tool(0,0,0));
+
+    m_items[TileId::CopperBow] = def(TileId::CopperBow, "Copper Bow", 1, false, false, tool(0, 0, 12));
+    m_items[TileId::IronBow]   = def(TileId::IronBow,   "Iron Bow",   1, false, false, tool(0, 0, 18));
+    m_items[TileId::GoldBow]   = def(TileId::GoldBow,   "Gold Bow",   1, false, false, tool(0, 0, 25));
+    m_items[TileId::Arrow]     = def(TileId::Arrow,     "Arrow",    999, false, true,  tool(0,0,0));
 }
 
 const ItemDefinition& ItemDatabase::get(TileId id) const {

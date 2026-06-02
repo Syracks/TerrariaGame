@@ -335,8 +335,35 @@ void Game::update(float dt) {
 
     if (player.getHealth() > 0) {
         InteractionSystem::handleSwingCompletion(player, world,
-                                                  m_session.getParticles(),
-                                                  m_session.getMinimap());
+                                                   m_session.getParticles(),
+                                                   m_session.getMinimap());
+
+        if (player.isBowFired()) {
+            player.resetBowFired();
+            auto* sel = player.getInventory().getSelectedSlot();
+            if (sel) {
+                Arrow arrow;
+                float centerX = player.getPosition().x + player.getBounds().width / 2;
+                float centerY = player.getPosition().y + player.getBounds().height / 2;
+                arrow.position = {centerX, centerY - 4};
+                Vector2 mouse = math::getVirtualMouse();
+                Vector2 worldPos = GetScreenToWorld2D(mouse, m_camera.getCamera());
+                float dx = worldPos.x - centerX;
+                float dy = worldPos.y - centerY;
+                float len = std::sqrt(dx * dx + dy * dy);
+                if (len > 0.1f) {
+                    float arrowSpeed = 900.0f;
+                    arrow.velocity = {dx / len * arrowSpeed, dy / len * arrowSpeed};
+                    arrow.facing = dx < 0 ? -1 : 1;
+                } else {
+                    int facing = player.isFacingLeft() ? -1 : 1;
+                    arrow.velocity = {static_cast<float>(facing) * 900.0f, -50.0f};
+                    arrow.facing = facing;
+                }
+                m_session.getArrows().push_back(arrow);
+                SoundManager::instance().play(SoundManager::SwordHit);
+            }
+        }
 
         CombatSystem::checkSwordHit(player, mobs, m_session.getParticles());
         CombatSystem::checkMobContactDamage(mobs, player);
@@ -374,6 +401,65 @@ void Game::update(float dt) {
                 m_totalKills++;
                 mob->unload();
                 it = mobs.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    {
+        auto& arrows = m_session.getArrows();
+        auto& particles = m_session.getParticles();
+        const float GRAVITY = 800.0f;
+        for (auto it = arrows.begin(); it != arrows.end(); ) {
+            Arrow& a = *it;
+            a.lifetime -= dt;
+            if (!a.active || a.lifetime <= 0.0f) {
+                it = arrows.erase(it);
+                continue;
+            }
+            a.velocity.y += GRAVITY * dt;
+            a.position.x += a.velocity.x * dt;
+            a.position.y += a.velocity.y * dt;
+
+            int tx = math::worldToTileX(a.position.x);
+            int ty = math::worldToTileY(a.position.y);
+            bool hitTile = false;
+            if (world.isInBounds(tx, ty)) {
+                TileId tile = world.getTile(tx, ty);
+                if (tile != TileId::Air && TileRegistry::instance().get(tile).solid) {
+                    hitTile = true;
+                }
+            }
+            if (a.position.x < 0 || a.position.x > constants::WORLD_WIDTH * constants::TILE_SIZE ||
+                a.position.y < 0 || a.position.y > constants::WORLD_HEIGHT * constants::TILE_SIZE) {
+                hitTile = true;
+            }
+
+            bool hitMob = false;
+            for (auto& mob : mobs) {
+                Rectangle mobBounds = mob->getBounds();
+                if (CheckCollisionPointRec(a.position, mobBounds)) {
+                    int damage = 0;
+                    auto* sel = player.getInventory().getSelectedSlot();
+                    if (sel) damage = ItemDatabase::instance().get(sel->tileId).tool.damage;
+                    if (damage <= 0) damage = 10;
+                    mob->takeDamage(damage);
+                    for (int i = 0; i < 5; ++i) {
+                        particles.emit(a.position, {0, -100}, {255, 100, 50, 255}, 0.4f, 3, 1);
+                    }
+                    hitMob = true;
+                    break;
+                }
+            }
+
+            if (hitTile || hitMob) {
+                for (int i = 0; i < 4; ++i) {
+                    particles.emit(a.position,
+                        {a.velocity.x * 0.2f, a.velocity.y * 0.2f},
+                        {200, 180, 140, 255}, 0.5f, 3, 1);
+                }
+                it = arrows.erase(it);
             } else {
                 ++it;
             }
@@ -456,6 +542,10 @@ void Game::newGame(const std::string& name, WorldSize size, int slot, Difficulty
     give(TileId::CopperPickaxe, 1);
     give(TileId::CopperAxe, 1);
     give(TileId::CopperSword, 1);
+    give(TileId::CopperBow, 1);
+    give(TileId::IronBow, 1);
+    give(TileId::GoldBow, 1);
+    give(TileId::Arrow, 99);
 
     m_session.getMinimap().rebuild(world);
 

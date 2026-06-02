@@ -157,9 +157,9 @@ float MiningSystem::getMiningTime(TileId tile, TileId tool) {
     if (isAxe(tool)) {
         float speedMult = ItemDatabase::instance().get(tool).tool.miningSpeed;
         switch (tile) {
-            case TileId::Wood:          return 0.30f / speedMult;
-            case TileId::Leaf:          return 0.15f / speedMult;
-            case TileId::Cactus:        return 0.25f / speedMult;
+            case TileId::Wood:          return 0.80f / speedMult;
+            case TileId::Leaf:          return 0.40f / speedMult;
+            case TileId::Cactus:        return 0.60f / speedMult;
             default:                    return 0.0f;
         }
     }

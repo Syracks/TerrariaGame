@@ -60,7 +60,11 @@ enum class TileId : uint8_t {
     GoldHammer = 52,
     Door = 53,
     WoodenChair = 54,
-    WoodenTable = 55
+    WoodenTable = 55,
+    CopperBow = 56,
+    IronBow = 57,
+    GoldBow = 58,
+    Arrow = 59
 };
 
 constexpr int MAX_LIQUID_LEVEL = 255;

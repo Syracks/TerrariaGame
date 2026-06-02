@@ -82,6 +82,10 @@ bool TextureManager::loadAll() {
     }
     loadTileTexture("wooden_chair", TileId::WoodenChair);
     loadTileTexture("wooden_table", TileId::WoodenTable);
+    loadToolTexture("copper_bow", TileId::CopperBow);
+    loadToolTexture("iron_bow", TileId::IronBow);
+    loadToolTexture("gold_bow", TileId::GoldBow);
+    loadTileTexture("arrow", TileId::Arrow);
 
     return true;
 }

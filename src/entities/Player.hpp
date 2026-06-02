@@ -27,6 +27,10 @@ public:
     float getSwingProgress() const;
     Rectangle getSwingHitbox() const;
 
+    bool fireBow();
+    bool isBowFired() const { return m_bowFired; }
+    void resetBowFired() { m_bowFired = false; }
+
     void setMiningTarget(int tx, int ty);
     int getMiningTargetX() const { return m_miningTargetX; }
     int getMiningTargetY() const { return m_miningTargetY; }
@@ -42,6 +46,7 @@ public:
 
     float getReach() const noexcept;
     void clearInventory();
+    bool isFacingLeft() const { return m_facingLeft; }
 
 private:
     void applyHorizontalMovement();
@@ -84,6 +89,9 @@ private:
 
     int m_miningTargetX = -1;
     int m_miningTargetY = -1;
+
+    bool m_bowFired = false;
+    float m_bowCooldown = 0.0f;
 
     int m_health = 100;
     int m_maxHealth = 100;

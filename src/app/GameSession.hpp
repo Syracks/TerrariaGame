@@ -3,6 +3,7 @@
 #include "world/World.hpp"
 #include "entities/Player.hpp"
 #include "entities/Mob.hpp"
+#include "entities/Arrow.hpp"
 #include "systems/ParticleSystem.hpp"
 #include "ui/Minimap.hpp"
 #include "core/Constants.hpp"
@@ -26,6 +27,8 @@ public:
     const Player& getPlayer() const { return *m_player; }
     std::vector<std::unique_ptr<Mob>>& getMobs() { return m_mobs; }
     const std::vector<std::unique_ptr<Mob>>& getMobs() const { return m_mobs; }
+    std::vector<Arrow>& getArrows() { return m_arrows; }
+    const std::vector<Arrow>& getArrows() const { return m_arrows; }
     ParticleSystem& getParticles() { return m_particles; }
     const ParticleSystem& getParticles() const { return m_particles; }
     Minimap& getMinimap() { return *m_minimap; }
@@ -54,6 +57,7 @@ private:
     std::unique_ptr<World> m_world;
     std::unique_ptr<Player> m_player;
     std::vector<std::unique_ptr<Mob>> m_mobs;
+    std::vector<Arrow> m_arrows;
     ParticleSystem m_particles;
     std::unique_ptr<Minimap> m_minimap;
     bool m_minimapVisible = true;

@@ -3,6 +3,7 @@
 #include "core/TextureManager.hpp"
 #include "core/SoundManager.hpp"
 #include "items/Tool.hpp"
+#include "items/ItemDefinition.hpp"
 
 #include <cmath>
 
@@ -98,11 +99,25 @@ void Player::startSwing(float customDuration) {
     if (m_isSwinging) return;
     auto* sel = m_inventory.getSelectedSlot();
     if (!sel || sel->count <= 0) return;
+    if (isBow(sel->tileId)) return;
     if (!isTool(sel->tileId)) return;
     m_isSwinging = true;
     m_swingTimer = 0.0f;
     m_swingDuration = customDuration;
     m_swingJustCompleted = false;
+}
+
+bool Player::fireBow() {
+    if (m_bowCooldown > 0.0f) return false;
+    auto* sel = m_inventory.getSelectedSlot();
+    if (!sel || sel->count <= 0) return false;
+    if (!isBow(sel->tileId)) return false;
+    int arrowCount = m_inventory.countItem(TileId::Arrow);
+    if (arrowCount <= 0) return false;
+    m_bowFired = true;
+    m_bowCooldown = 0.4f;
+    m_inventory.removeItem(TileId::Arrow, 1);
+    return true;
 }
 
 void Player::clearInventory() {
@@ -196,6 +211,8 @@ void Player::update(float dt) {
             m_swingTimer = 0.0f;
         }
     }
+
+    if (m_bowCooldown > 0.0f) m_bowCooldown -= dt;
 }
 
 void Player::render() const {
@@ -238,32 +255,49 @@ void Player::render() const {
         DrawRectangleRec(getBounds(), BLUE);
     }
 
-    if (m_isSwinging) {
-        auto* sel = m_inventory.getSelectedSlot();
-        if (sel && sel->count > 0) {
-            TileId toolId = sel->tileId;
-            const Texture2D& toolTex = TextureManager::instance().getTexture(toolId);
-            if (toolTex.id > 0) {
-                float centerX = m_position.x + m_width / 2;
-                float centerY = m_position.y + m_height / 2;
-                float t = getSwingProgress();
-                float angleDeg = SWING_START_ANGLE + t * SWING_ARC;
+    auto* sel = m_inventory.getSelectedSlot();
+    if (m_isSwinging && sel && sel->count > 0) {
+        TileId toolId = sel->tileId;
+        const Texture2D& toolTex = TextureManager::instance().getTexture(toolId);
+        if (toolTex.id > 0) {
+            float centerX = m_position.x + m_width / 2;
+            float centerY = m_position.y + m_height / 2;
+            float t = getSwingProgress();
+            float angleDeg = SWING_START_ANGLE + t * SWING_ARC;
 
-                float armLen = constants::TILE_SIZE * 0.9f;
-                float angleRad = angleDeg * DEG2RAD;
-                int side = m_facingLeft ? -1 : 1;
-                float xOff = m_facingLeft ? 0.0f : constants::TILE_SIZE * 0.85f;
-                float handX = centerX + std::cos(angleRad) * armLen * side + xOff;
-                float handY = centerY + std::sin(angleRad) * armLen;
+            float armLen = constants::TILE_SIZE * 0.9f;
+            float angleRad = angleDeg * DEG2RAD;
+            int side = m_facingLeft ? -1 : 1;
+            float xOff = m_facingLeft ? 0.0f : constants::TILE_SIZE * 0.85f;
+            float handX = centerX + std::cos(angleRad) * armLen * side + xOff;
+            float handY = centerY + std::sin(angleRad) * armLen;
 
-                Rectangle tSrc = {0, 0, static_cast<float>(toolTex.width),
-                                  static_cast<float>(toolTex.height)};
-                if (m_facingLeft) tSrc.width = -tSrc.width;
-                Rectangle tDst = {handX - TOOL_SIZE / 2, handY - TOOL_SIZE / 2,
-                                  TOOL_SIZE, TOOL_SIZE};
-                float rot = m_facingLeft ? -angleDeg : angleDeg;
-                DrawTexturePro(toolTex, tSrc, tDst, {TOOL_SIZE / 2, TOOL_SIZE / 2}, rot, WHITE);
-            }
+            Rectangle tSrc = {0, 0, static_cast<float>(toolTex.width),
+                              static_cast<float>(toolTex.height)};
+            if (m_facingLeft) tSrc.width = -tSrc.width;
+            Rectangle tDst = {handX - TOOL_SIZE / 2, handY - TOOL_SIZE / 2,
+                              TOOL_SIZE, TOOL_SIZE};
+            float rot = m_facingLeft ? -angleDeg : angleDeg;
+            DrawTexturePro(toolTex, tSrc, tDst, {TOOL_SIZE / 2, TOOL_SIZE / 2}, rot, WHITE);
+        }
+    }
+
+    if (sel && sel->count > 0 && isBow(sel->tileId)) {
+        const Texture2D& bowTex = TextureManager::instance().getTexture(sel->tileId);
+        if (bowTex.id > 0) {
+            float centerX = m_position.x + m_width / 2;
+            float centerY = m_position.y + m_height / 2;
+            int side = m_facingLeft ? -1 : 1;
+            float handX = centerX + constants::TILE_SIZE * 0.6f * side;
+            float handY = centerY + constants::TILE_SIZE * 0.25f;
+
+            Rectangle tSrc = {0, 0, static_cast<float>(bowTex.width),
+                              static_cast<float>(bowTex.height)};
+            Rectangle tDst = {handX - TOOL_SIZE / 2, handY - TOOL_SIZE / 2,
+                              TOOL_SIZE, TOOL_SIZE};
+            float rot = 0.0f;
+            if (m_facingLeft) tSrc.width = -tSrc.width;
+            DrawTexturePro(bowTex, tSrc, tDst, {TOOL_SIZE / 2, TOOL_SIZE / 2}, rot, WHITE);
         }
     }
 }

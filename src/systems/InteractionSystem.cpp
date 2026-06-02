@@ -53,6 +53,13 @@ void InteractionSystem::handleMinePress(Player& player, const World& world,
         return;
     }
 
+    if (isBow(held)) {
+        if (player.fireBow()) {
+            SoundManager::instance().play(SoundManager::SwordSwing);
+        }
+        return;
+    }
+
     if (!isTool(held)) return;
 
     Vector2 worldPos = GetScreenToWorld2D(math::getVirtualMouse(), camera);

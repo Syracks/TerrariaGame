@@ -39,6 +39,10 @@ bool isHammer(TileId id) {
            id == TileId::IronHammer || id == TileId::GoldHammer;
 }
 
+bool isBow(TileId id) {
+    return id == TileId::CopperBow || id == TileId::IronBow || id == TileId::GoldBow;
+}
+
 bool isTreeTile(TileId id) {
     return id == TileId::Wood || id == TileId::Leaf;
 }

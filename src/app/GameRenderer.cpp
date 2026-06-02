@@ -140,11 +140,28 @@ void GameRenderer::renderWorldAndEntities(GameSession& session, const Camera2D& 
     const auto& player = session.getPlayer();
     const auto& mobs = session.getMobs();
     const auto& particles = session.getParticles();
+    const auto& arrows = session.getArrows();
 
     BeginMode2D(cam);
     RenderSystem::renderWorld(world, cam);
     for (auto& mob : mobs) {
         mob->render();
+    }
+    {
+        const Texture2D& arrowTex = TextureManager::instance().getTexture(TileId::Arrow);
+        for (const auto& a : arrows) {
+            if (!a.active) continue;
+            if (arrowTex.id > 0) {
+                Rectangle src = {0, 0, static_cast<float>(arrowTex.width),
+                                 static_cast<float>(arrowTex.height)};
+                Rectangle dst = {a.position.x - 8, a.position.y - 8, 16, 16};
+                float rot = std::atan2(a.velocity.y, a.velocity.x) * RAD2DEG;
+                Vector2 origin = {8, 8};
+                DrawTexturePro(arrowTex, src, dst, origin, rot, WHITE);
+            } else {
+                DrawCircleV(a.position, 3, {200, 180, 140, 255});
+            }
+        }
     }
     particles.render();
     if (session.getDeathTimer() <= 0.0f) {

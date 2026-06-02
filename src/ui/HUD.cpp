@@ -2,6 +2,7 @@
 #include "entities/Player.hpp"
 #include "items/Inventory.hpp"
 #include "items/ItemDefinition.hpp"
+#include "items/Tool.hpp"
 #include "world/TileRegistry.hpp"
 #include "core/Constants.hpp"
 #include "core/TextureManager.hpp"
@@ -77,6 +78,10 @@ void HUD::render(const Player& player, float dayTime) {
     auto& reg = TileRegistry::instance();
     const auto& selectedDef = reg.get(slots[selected].tileId);
     std::string selectedName = "Selected: " + selectedDef.name;
+    if (isBow(slots[selected].tileId)) {
+        int arrowCount = inventory.countItem(TileId::Arrow);
+        selectedName += "  [Arrows: " + std::to_string(arrowCount) + "]";
+    }
     DrawText(selectedName.c_str(), 10, startY - 25, 16, WHITE);
 }
 

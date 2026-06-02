@@ -4,8 +4,8 @@ const std::vector<Recipe>& RecipeDatabase::getAll() {
     using enum CraftingStation;
 
     static const std::vector<Recipe> recipes = {
-        {TileId::Torch, 3, {{TileId::Wood, 1}}, None},
-        {TileId::Torch, 5, {{TileId::Wood, 1}, {TileId::Gel, 1}}, None},
+        {TileId::Torch, 3, {{TileId::Planks, 1}}, None},
+        {TileId::Torch, 5, {{TileId::Planks, 1}, {TileId::Gel, 1}}, None},
         {TileId::Planks, 1, {{TileId::Wood, 1}}, None},
         {TileId::DirtWall, 4, {{TileId::Dirt, 1}}, None},
         {TileId::StoneWall, 4, {{TileId::Stone, 1}}, None},
@@ -45,6 +45,11 @@ const std::vector<Recipe>& RecipeDatabase::getAll() {
         {TileId::GoldAxe, 1,     {{TileId::GoldBar, 15}, {TileId::Planks, 10}}, Anvil},
         {TileId::GoldSword, 1,   {{TileId::GoldBar, 10}, {TileId::Planks, 10}}, Anvil},
         {TileId::GoldHammer, 1,  {{TileId::GoldBar, 10}, {TileId::Planks, 10}}, Anvil},
+
+        {TileId::CopperBow, 1, {{TileId::CopperBar, 8}, {TileId::Gel, 3}}, Anvil},
+        {TileId::IronBow, 1,   {{TileId::IronBar, 8},   {TileId::Gel, 3}}, Anvil},
+        {TileId::GoldBow, 1,   {{TileId::GoldBar, 8},   {TileId::Gel, 3}}, Anvil},
+        {TileId::Arrow, 10,    {{TileId::Stone, 2}, {TileId::Wood, 1}}, Workbench},
     };
     return recipes;
 }
