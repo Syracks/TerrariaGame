@@ -23,6 +23,7 @@ set(SOURCES
     src/app/MobSpawner.cpp
     src/app/PlayerController.cpp
     src/core/SoundManager.cpp
+    src/core/MusicManager.cpp
     src/core/TextureManager.cpp
     src/crafting/Recipe.cpp
     src/entities/Mob.cpp

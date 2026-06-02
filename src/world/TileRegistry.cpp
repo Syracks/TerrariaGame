@@ -66,6 +66,7 @@ TileRegistry::TileRegistry() {
     m_tiles[TileId::IronBow]       = {TileId::IronBow,       "Iron Bow",      false,  0, Color{150, 150, 160, 255}};
     m_tiles[TileId::GoldBow]       = {TileId::GoldBow,       "Gold Bow",      false,  0, Color{220, 200, 40, 255}};
     m_tiles[TileId::Arrow]         = {TileId::Arrow,         "Arrow",         false,  0, Color{200, 200, 210, 255}};
+    m_tiles[TileId::AncientSeed]   = {TileId::AncientSeed,   "Ancient Seed",  false,  0, Color{80, 200, 60, 255}};
 }
 
 const TileDefinition& TileRegistry::get(TileId id) const {

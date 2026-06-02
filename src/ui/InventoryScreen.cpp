@@ -30,6 +30,7 @@ namespace {
     constexpr int MENU_BTN_H = 40;
     constexpr int MENU_BTN_X = constants::SCREEN_WIDTH - MENU_BTN_W - 15;
     constexpr int MENU_BTN_Y = constants::SCREEN_HEIGHT - MENU_BTN_H - 15;
+    constexpr int SETTINGS_BTN_Y = MENU_BTN_Y - MENU_BTN_H - 8;
 
     constexpr float STATION_RANGE = 3.0f;
 
@@ -126,6 +127,16 @@ InventoryScreen::Action InventoryScreen::update(Player& player, const World& wor
     }
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        Rectangle settingsBtn = {
+            static_cast<float>(MENU_BTN_X),
+            static_cast<float>(SETTINGS_BTN_Y),
+            static_cast<float>(MENU_BTN_W),
+            static_cast<float>(MENU_BTN_H)
+        };
+        if (CheckCollisionPointRec(mouse, settingsBtn)) {
+            return Action::OpenSettings;
+        }
+
         Rectangle menuBtn = {
             static_cast<float>(MENU_BTN_X),
             static_cast<float>(MENU_BTN_Y),
@@ -305,6 +316,21 @@ void InventoryScreen::render(const Player& player, const World& world) const {
     }
 
     Vector2 mouse = math::getVirtualMouse();
+    Rectangle settingsBtn = {
+        static_cast<float>(MENU_BTN_X),
+        static_cast<float>(SETTINGS_BTN_Y),
+        static_cast<float>(MENU_BTN_W),
+        static_cast<float>(MENU_BTN_H)
+    };
+    {
+        bool hover = CheckCollisionPointRec(mouse, settingsBtn);
+        DrawRectangleRec(settingsBtn, hover ? Color{40, 40, 80, 220} : Color{30, 30, 60, 200});
+        DrawRectangleLinesEx(settingsBtn, 1, hover ? Color{100, 100, 200, 255} : Color{60, 60, 120, 255});
+        const char* label = "Settings";
+        int textW = MeasureText(label, 16);
+        DrawText(label, settingsBtn.x + (MENU_BTN_W - textW) / 2, settingsBtn.y + 12, 16, WHITE);
+    }
+
     Rectangle menuBtn = {
         static_cast<float>(MENU_BTN_X),
         static_cast<float>(MENU_BTN_Y),

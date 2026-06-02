@@ -49,6 +49,8 @@ private:
 
     RenderTexture2D m_target{};
 
+    GameState m_prevState = GameState::Playing;
+
     float m_autosaveTimer = 0.0f;
     int m_spawnGuard = 0;
     int m_totalKills = 0;

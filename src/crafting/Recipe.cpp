@@ -50,6 +50,7 @@ const std::vector<Recipe>& RecipeDatabase::getAll() {
         {TileId::IronBow, 1,   {{TileId::IronBar, 8},   {TileId::Gel, 3}}, Anvil},
         {TileId::GoldBow, 1,   {{TileId::GoldBar, 8},   {TileId::Gel, 3}}, Anvil},
         {TileId::Arrow, 10,    {{TileId::Stone, 2}, {TileId::Wood, 1}}, Workbench},
+        {TileId::AncientSeed, 1, {{TileId::Wood, 15}, {TileId::Gel, 5}, {TileId::GoldBar, 1}}, Workbench},
     };
     return recipes;
 }

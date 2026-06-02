@@ -606,15 +606,15 @@ void WorldGenerator::generateCaves() {
             float combined = caveNoise;
 
             if (depth < 50) {
-                // Shallow caves: tight, small openings
+
                 threshold = 0.48f - static_cast<float>(depth - SURFACE_SAFE_DEPTH) / 150.0f;
                 combined += std::max(0.0f, smallNoise - 0.35f) * 0.10f;
             } else if (depth < 80) {
-                // Mid-depth: normal caves
+
                 threshold = 0.42f - static_cast<float>(depth - 50) / 200.0f;
                 combined += std::max(0.0f, cavernNoise - 0.50f) * 0.15f;
             } else {
-                // Deep: large caverns
+
                 threshold = 0.36f - static_cast<float>(depth - 80) / 300.0f;
                 combined += std::max(0.0f, cavernNoise - 0.40f) * 0.25f;
             }
@@ -716,7 +716,7 @@ void WorldGenerator::generateTrees() {
         if (!canGrowTreeOn(surfaceTile)) continue;
         if (m_world.getTile(tileX, surfaceY - 1) != TileId::Air) continue;
 
-        // Skip steep slopes
+
         int leftY  = (tileX > 0) ? m_surfaceHeight[tileX - 1] : surfaceY;
         int rightY = (tileX < constants::WORLD_WIDTH - 1) ? m_surfaceHeight[tileX + 1] : surfaceY;
         if (std::abs(surfaceY - leftY) > 1 || std::abs(surfaceY - rightY) > 1) continue;
@@ -871,7 +871,7 @@ void WorldGenerator::postProcess() {
 
             if (!isReplaceableForCave(tile)) continue;
 
-            // Fix 1-tile air pockets surrounded by solid
+
             if (tile == TileId::Air && tileY > surfaceY + 1) {
                 int solidCount = 0;
                 for (int dy = -1; dy <= 1; ++dy) {
@@ -894,7 +894,7 @@ void WorldGenerator::postProcess() {
                 continue;
             }
 
-            // Repair floating blocks (no solid ground below)
+
             if (tile != TileId::Air && tileY < constants::WORLD_HEIGHT - 1) {
                 bool hasSupport = false;
                 for (int dy = 1; dy <= 2 && tileY + dy < constants::WORLD_HEIGHT; ++dy) {
@@ -908,7 +908,7 @@ void WorldGenerator::postProcess() {
         }
     }
 
-    // Ensure spawn area is clear
+
     for (int x = spawnX - 15; x <= spawnX + 15; ++x) {
         if (x < 0 || x >= constants::WORLD_WIDTH) continue;
         for (int y = m_surfaceHeight[x] - 5; y < m_surfaceHeight[x]; ++y) {
@@ -1075,7 +1075,7 @@ void WorldGenerator::generateOceans() {
                 }
             }
 
-            // Water zone: first 45 tiles from edge
+
             if (x < 45) {
                 float waterLevel = 1.0f;
                 if (x > 35) {
@@ -1094,7 +1094,7 @@ void WorldGenerator::generateOceans() {
                     m_world.setTile(tileX, y, TileId::Sand);
                 }
             } else {
-                // Beach: sand rising to normal terrain
+
                 m_world.setTile(tileX, surfaceY, TileId::Sand);
                 for (int y = surfaceY + 1; y <= surfaceY + 6 && y < constants::WORLD_HEIGHT; ++y) {
                     m_world.setTile(tileX, y, TileId::Sand);
@@ -1250,5 +1250,5 @@ void WorldGenerator::generateLavaPools() {
     }
 }
 
-// generateFloatingIslands temporarily disabled (unstable generation)
-// void WorldGenerator::generateFloatingIslands() { ... }
+
+

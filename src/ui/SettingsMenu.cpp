@@ -56,13 +56,8 @@ SettingsMenu::Action SettingsMenu::update() {
         160.0f, 30.0f
     };
 
-    Rectangle minimapRect = {
-        static_cast<float>(COL2_X), static_cast<float>(START_Y + ROW_H * 2),
-        160.0f, 30.0f
-    };
-
     Rectangle prevResRect = {
-        static_cast<float>(COL1_X), static_cast<float>(START_Y + ROW_H * 3),
+        static_cast<float>(COL1_X), static_cast<float>(START_Y + ROW_H * 2),
         30.0f, 30.0f
     };
     Rectangle nextResRect = {
@@ -98,10 +93,6 @@ SettingsMenu::Action SettingsMenu::update() {
             int h = constants::RESOLUTIONS[m_resolutionIndex][1];
             SetWindowSize(w, h);
         }
-    }
-
-    if (isClicked(minimapRect)) {
-        m_showMinimap = !m_showMinimap;
     }
 
     if (isClicked(prevResRect)) {
@@ -162,23 +153,6 @@ void SettingsMenu::render() const {
              START_Y + ROW_H * row + 4, 22, WHITE);
     row++;
 
-    DrawText("Show Minimap", COL1_X, START_Y + ROW_H * row - 24, 22, LIGHTGRAY);
-    Rectangle minimapRect = {
-        static_cast<float>(COL2_X), static_cast<float>(START_Y + ROW_H * row),
-        160.0f, 30.0f
-    };
-    bool mmHov = CheckCollisionPointRec(math::getVirtualMouse(), minimapRect);
-    Color mmBg = m_showMinimap ? (mmHov ? Color{60, 90, 60, 255} : Color{40, 70, 40, 255})
-                               : (mmHov ? Color{60, 50, 50, 255} : Color{45, 35, 35, 255});
-    Color mmBorder = m_showMinimap ? (mmHov ? Color{100, 200, 100, 255} : Color{60, 120, 60, 255})
-                                   : (mmHov ? Color{180, 100, 100, 255} : Color{80, 60, 60, 255});
-    DrawRectangleRec(minimapRect, mmBg);
-    DrawRectangleLinesEx(minimapRect, 1, mmBorder);
-    const char* mmText = m_showMinimap ? "On" : "Off";
-    DrawText(mmText, COL2_X + (160 - MeasureText(mmText, 22)) / 2,
-             START_Y + ROW_H * row + 4, 22, WHITE);
-    row++;
-
     DrawText("Resolution", COL1_X, START_Y + ROW_H * row - 24, 22, LIGHTGRAY);
     std::string resText = std::to_string(constants::RESOLUTIONS[m_resolutionIndex][0]) + "x" +
                           std::to_string(constants::RESOLUTIONS[m_resolutionIndex][1]);
@@ -220,7 +194,6 @@ void SettingsMenu::saveToFile() const {
     file << m_volume << "\n";
     file << m_resolutionIndex << "\n";
     file << (m_fullscreen ? "1" : "0") << "\n";
-    file << (m_showMinimap ? "1" : "0") << "\n";
 }
 
 void SettingsMenu::loadFromFile() {
@@ -241,8 +214,5 @@ void SettingsMenu::loadFromFile() {
     }
     if (std::getline(file, line)) {
         m_fullscreen = (line == "1");
-    }
-    if (std::getline(file, line)) {
-        m_showMinimap = (line != "0");
     }
 }

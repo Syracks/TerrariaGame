@@ -120,6 +120,16 @@ bool SoundManager::loadAll() {
     m_sounds[Craft]         = makeSound(generateCraft());
     m_sounds[ItemPickup]    = makeSound(generateItemPickup());
 
+    if (FileExists("assets/sounds/player_hurt.mp3")) {
+        m_sounds[PlayerHurt] = LoadSound("assets/sounds/player_hurt.mp3");
+    } else {
+        m_sounds[PlayerHurt] = makeSound(generatePlayerHurt());
+    }
+
+    if (FileExists("assets/sounds/boss_summon.mp3")) {
+        m_sounds[BossSummon] = LoadSound("assets/sounds/boss_summon.mp3");
+    }
+
     m_loaded = true;
     return true;
 }
@@ -218,5 +228,12 @@ Wave SoundManager::generateCraft() {
 Wave SoundManager::generateItemPickup() {
     SampleBuffer buf{{}, SAMPLE_RATE};
     buf.fillSineSweep(600.0f, 1200.0f, 0.07f, 0.5f);
+    return buf.toWave();
+}
+
+Wave SoundManager::generatePlayerHurt() {
+    SampleBuffer buf{{}, SAMPLE_RATE};
+    buf.fillNoise(0.08f, 0.7f);
+    buf.fillSineSweep(200.0f, 80.0f, 0.12f, 0.5f);
     return buf.toWave();
 }

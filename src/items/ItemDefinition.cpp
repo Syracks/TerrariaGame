@@ -72,6 +72,7 @@ ItemDatabase::ItemDatabase() {
     m_items[TileId::IronBow]   = def(TileId::IronBow,   "Iron Bow",   1, false, false, tool(0, 0, 18));
     m_items[TileId::GoldBow]   = def(TileId::GoldBow,   "Gold Bow",   1, false, false, tool(0, 0, 25));
     m_items[TileId::Arrow]     = def(TileId::Arrow,     "Arrow",    999, false, true,  tool(0,0,0));
+    m_items[TileId::AncientSeed] = def(TileId::AncientSeed, "Ancient Seed", 20, false, false, tool(0,0,0));
 }
 
 const ItemDefinition& ItemDatabase::get(TileId id) const {

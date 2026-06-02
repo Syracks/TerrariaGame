@@ -86,6 +86,9 @@ bool TextureManager::loadAll() {
     loadToolTexture("iron_bow", TileId::IronBow);
     loadToolTexture("gold_bow", TileId::GoldBow);
     loadTileTexture("arrow", TileId::Arrow);
+    loadTileTexture("leaf_projectile", TileId::LeafProjectile);
+    loadTileTexture("fireball", TileId::Fireball);
+    loadTileTexture("ancient_seed", TileId::AncientSeed);
 
     return true;
 }

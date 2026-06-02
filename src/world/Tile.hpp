@@ -64,7 +64,10 @@ enum class TileId : uint8_t {
     CopperBow = 56,
     IronBow = 57,
     GoldBow = 58,
-    Arrow = 59
+    Arrow = 59,
+    LeafProjectile = 60,
+    Fireball = 61,
+    AncientSeed = 62
 };
 
 constexpr int MAX_LIQUID_LEVEL = 255;
@@ -72,7 +75,7 @@ constexpr int MAX_LIQUID_LEVEL = 255;
 enum class Biome { Forest, Desert, Snow, Plains, Jungle, Ocean, Beach };
 
 struct LiquidInfo {
-    uint8_t amount = 0;  // 0 = none, 255 = full
+    uint8_t amount = 0;
     bool isLava = false;
 };
 

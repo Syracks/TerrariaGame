@@ -1,7 +1,10 @@
 #include "entities/Mob.hpp"
 #include "core/Constants.hpp"
+#include "core/SoundManager.hpp"
+#include "systems/CollisionSystem.hpp"
 
 #include <cmath>
+#include <cstdlib>
 #include <random>
 
 namespace {
@@ -22,10 +25,10 @@ namespace {
     constexpr float ZOMBIE_SPEED = 50.0f;
 
     constexpr float IDLE_HOP_INTERVAL = 0.8f;
-    constexpr float IDLE_HOP_VY = -300.0f;
+    constexpr float IDLE_HOP_VY = -350.0f;
     constexpr float IDLE_HOP_VX = 60.0f;
 
-    constexpr float CHASE_HOP_VY = -250.0f;
+    constexpr float CHASE_HOP_VY = -350.0f;
     constexpr float CHASE_HOP_VX = 100.0f;
     constexpr float CHASE_DURATION = 8.0f;
     constexpr float CHASE_STOP_DIST = 20.0f;
@@ -41,6 +44,15 @@ namespace {
     constexpr float ZOMBIE_CHASE_SPEED = 60.0f;
     constexpr float ZOMBIE_TURN_INTERVAL = 3.0f;
     constexpr float ZOMBIE_JUMP_VY = -350.0f;
+
+    constexpr float BOSS_W = 80.0f;
+    constexpr float BOSS_H = 160.0f;
+    constexpr int BOSS_HP = 3000;
+    constexpr int BOSS_DMG = 20;
+    constexpr float BOSS_ATTACK_COOLDOWN = 2.0f;
+    constexpr float BOSS_PHASE_COOLDOWN = 1.0f;
+    constexpr float BOSS_SPEED = 40.0f;
+    constexpr float BOSS_SPEED_ENRAGED = 120.0f;
 }
 
 Mob::Mob(MobType type, Vector2 position)
@@ -52,6 +64,15 @@ Mob::Mob(MobType type, Vector2 position)
             m_height = BLUE_SLIME_H;
             m_health = BLUE_SLIME_HP;
             m_maxHealth = BLUE_SLIME_HP;
+            break;
+        case MobType::ForestGuardian:
+            m_width = BOSS_W;
+            m_height = BOSS_H;
+            m_health = BOSS_HP;
+            m_maxHealth = BOSS_HP;
+            m_phase = 1;
+            m_attackTimer = 1.0f;
+            m_state = MobState::Chase;
             break;
         case MobType::Zombie:
             m_width = ZOMBIE_W;
@@ -74,33 +95,77 @@ Mob::~Mob() {
 
 void Mob::load() {
     unload();
-    const char* path;
     switch (m_type) {
-        case MobType::Zombie:
-            path = "assets/textures/enemies/zombie.png";
+        case MobType::ForestGuardian: {
+            Image img = LoadImage("assets/textures/enemies/forest_guardian.png");
+            if (img.data != nullptr) {
+                m_tex = LoadTextureFromImage(img);
+                ImageFlipHorizontal(&img);
+                m_texFlipped = LoadTextureFromImage(img);
+                UnloadImage(img);
+            }
+            Image imgE = LoadImage("assets/textures/enemies/forest_guardian_enraged.png");
+            if (imgE.data != nullptr) {
+                m_texEnraged = LoadTextureFromImage(imgE);
+                ImageFlipHorizontal(&imgE);
+                m_texEnragedFlipped = LoadTextureFromImage(imgE);
+                UnloadImage(imgE);
+            }
             break;
-        default:
-            path = "assets/textures/enemies/slime.png";
-            break;
-    }
-    Image img = LoadImage(path);
-    if (img.data != nullptr) {
-        if (m_type == MobType::BlueSlime) {
-            ImageColorTint(&img, (Color){50, 130, 255, 255});
         }
-        m_tex = LoadTextureFromImage(img);
-        ImageFlipHorizontal(&img);
-        m_texFlipped = LoadTextureFromImage(img);
-        UnloadImage(img);
+        case MobType::Zombie: {
+            Image img = LoadImage("assets/textures/enemies/zombie.png");
+            if (img.data != nullptr) {
+                m_tex = LoadTextureFromImage(img);
+                ImageFlipHorizontal(&img);
+                m_texFlipped = LoadTextureFromImage(img);
+                UnloadImage(img);
+            }
+            break;
+        }
+        default: {
+            const char* path = "assets/textures/enemies/slime.png";
+            Image img = LoadImage(path);
+            if (img.data != nullptr) {
+                if (m_type == MobType::BlueSlime) {
+                    ImageColorTint(&img, (Color){50, 130, 255, 255});
+                }
+                m_tex = LoadTextureFromImage(img);
+                ImageFlipHorizontal(&img);
+                m_texFlipped = LoadTextureFromImage(img);
+                UnloadImage(img);
+            }
+            break;
+        }
     }
 }
 
 void Mob::unload() {
     if (m_tex.id > 0) { UnloadTexture(m_tex); m_tex = {}; }
     if (m_texFlipped.id > 0) { UnloadTexture(m_texFlipped); m_texFlipped = {}; }
+    if (m_texEnraged.id > 0) { UnloadTexture(m_texEnraged); m_texEnraged = {}; }
+    if (m_texEnragedFlipped.id > 0) { UnloadTexture(m_texEnragedFlipped); m_texEnragedFlipped = {}; }
 }
 
 void Mob::takeDamage(int amount) {
+    if (m_type == MobType::ForestGuardian) {
+        if (m_hitTimer > 0.0f) return;
+        if (m_phaseTransitionTimer > 0.0f) return;
+        m_hitTimer = 0.2f;
+        m_health -= amount;
+        if (m_health < 0) m_health = 0;
+        int maxHp = m_maxHealth;
+        int newPhase = (m_health > maxHp * 2 / 3) ? 1
+                     : (m_health > maxHp / 3) ? 2 : 3;
+        if (newPhase > m_phase) {
+            m_phase = newPhase;
+            m_phaseTransitionTimer = BOSS_PHASE_COOLDOWN;
+            if (m_phase >= 3) {
+                SoundManager::instance().play(SoundManager::BossSummon);
+            }
+        }
+        return;
+    }
     if (m_hitTimer > 0.0f) return;
     m_hitTimer = HIT_COOLDOWN;
     m_health -= amount;
@@ -110,6 +175,11 @@ void Mob::takeDamage(int amount) {
 }
 
 void Mob::update(float dt) {
+    if (m_type == MobType::ForestGuardian) {
+        forestGuardianAI(dt);
+        return;
+    }
+
     if (m_hitTimer > 0.0f) m_hitTimer -= dt;
 
     if (m_state == MobState::Chase) {
@@ -172,6 +242,7 @@ void Mob::zombieIdleAI(float dt) {
     }
     if (m_onGround) {
         m_velocity.x = static_cast<float>(m_facing) * ZOMBIE_PATROL_SPEED;
+        tryJumpObstacle();
     }
 }
 
@@ -182,19 +253,62 @@ void Mob::zombieChaseAI(float dt) {
 
     if (m_onGround) {
         m_velocity.x = static_cast<float>(m_facing) * ZOMBIE_CHASE_SPEED;
+        tryJumpObstacle();
         if (dy < -constants::TILE_SIZE * 2 && std::abs(dx) < constants::TILE_SIZE * 4) {
             m_velocity.y = ZOMBIE_JUMP_VY;
         }
     }
 }
 
+void Mob::forestGuardianAI(float dt) {
+    m_phaseTransitionTimer -= dt;
+    if (m_phaseTransitionTimer < 0.0f) m_phaseTransitionTimer = 0.0f;
+    m_hitTimer -= dt;
+    if (m_hitTimer < 0.0f) m_hitTimer = 0.0f;
+
+    float dx = m_playerPos.x - m_position.x;
+    float dy = m_playerPos.y - m_position.y;
+    float dist = std::sqrt(dx * dx + dy * dy);
+    m_facing = (dx > 0) ? 1 : -1;
+
+    float speed = (m_phase >= 3) ? BOSS_SPEED_ENRAGED : BOSS_SPEED;
+
+    if (dist > 80.0f) {
+        float moveX = (dx / dist) * speed;
+        m_velocity.x = moveX;
+        tryJumpObstacle();
+    } else {
+        m_velocity.x = 0.0f;
+    }
+
+    float hpRatio = static_cast<float>(m_health) / m_maxHealth;
+    float cooldown = BOSS_ATTACK_COOLDOWN * hpRatio + 0.3f;
+
+    m_attackTimer -= dt;
+    if (m_attackTimer <= 0.0f && dist < 300.0f) {
+        m_attackTimer = cooldown;
+
+        bool shootFireball = (m_phase >= 2) ? (rand() % 2 == 0) : false;
+        m_projectilePending = true;
+        m_pendingProjectileType = shootFireball ? ProjectileType::Fireball : ProjectileType::Leaf;
+    }
+}
+
 void Mob::render() const {
-    Texture2D* tex = m_facing == 1 ? &m_tex : &m_texFlipped;
+    Texture2D* tex;
+    if (m_type == MobType::ForestGuardian && m_phase >= 3) {
+        tex = (m_facing == 1) ? &m_texEnraged : &m_texEnragedFlipped;
+    } else {
+        tex = (m_facing == 1) ? &m_tex : &m_texFlipped;
+    }
+    Color tint = (m_type == MobType::ForestGuardian && m_phaseTransitionTimer > 0.0f)
+                 ? Color{255, 255, 255, 120}
+                 : WHITE;
     if (tex && tex->id > 0) {
         Rectangle src = {0, 0, static_cast<float>(m_tex.width),
                          static_cast<float>(m_tex.height)};
         Rectangle dst = {m_position.x, m_position.y, m_width, m_height};
-        DrawTexturePro(*tex, src, dst, {0, 0}, 0.0f, WHITE);
+        DrawTexturePro(*tex, src, dst, {0, 0}, 0.0f, tint);
     } else {
         DrawRectangleRec(getBounds(), {100, 200, 80, 255});
     }
@@ -212,6 +326,7 @@ void Mob::render() const {
 
 int Mob::getContactDamage() const {
     switch (m_type) {
+        case MobType::ForestGuardian: return BOSS_DMG;
         case MobType::BlueSlime: return BLUE_SLIME_DMG;
         case MobType::Zombie: return ZOMBIE_DMG;
         default: return SLIME_DMG;
@@ -227,4 +342,16 @@ void Mob::knockback(Vector2 dir) {
     }
     m_velocity.x = dir.x * force;
     m_velocity.y = dir.y * force * 0.4f;
+}
+
+void Mob::tryJumpObstacle() {
+    if (!m_onGround || !m_world) return;
+    float checkX = m_position.x + (m_facing > 0 ? m_width + 4.0f : -4.0f);
+    float feetY = m_position.y + m_height - 6.0f;
+    float midY = m_position.y + m_height * 0.5f;
+    bool blocked = CollisionSystem::isTileSolidAt(*m_world, checkX, feetY)
+                || CollisionSystem::isTileSolidAt(*m_world, checkX, midY);
+    if (blocked) {
+        m_velocity.y = -280.0f;
+    }
 }

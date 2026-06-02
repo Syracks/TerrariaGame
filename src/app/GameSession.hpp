@@ -4,6 +4,7 @@
 #include "entities/Player.hpp"
 #include "entities/Mob.hpp"
 #include "entities/Arrow.hpp"
+#include "entities/TempHitbox.hpp"
 #include "systems/ParticleSystem.hpp"
 #include "ui/Minimap.hpp"
 #include "core/Constants.hpp"
@@ -27,8 +28,10 @@ public:
     const Player& getPlayer() const { return *m_player; }
     std::vector<std::unique_ptr<Mob>>& getMobs() { return m_mobs; }
     const std::vector<std::unique_ptr<Mob>>& getMobs() const { return m_mobs; }
-    std::vector<Arrow>& getArrows() { return m_arrows; }
-    const std::vector<Arrow>& getArrows() const { return m_arrows; }
+    std::vector<Projectile>& getProjectiles() { return m_projectiles; }
+    const std::vector<Projectile>& getProjectiles() const { return m_projectiles; }
+    std::vector<TempHitbox>& getTempHitboxes() { return m_tempHitboxes; }
+    const std::vector<TempHitbox>& getTempHitboxes() const { return m_tempHitboxes; }
     ParticleSystem& getParticles() { return m_particles; }
     const ParticleSystem& getParticles() const { return m_particles; }
     Minimap& getMinimap() { return *m_minimap; }
@@ -52,12 +55,16 @@ public:
     unsigned int getSeed() const { return m_seed; }
 
     std::mt19937& getRNG() { return m_rng; }
+    bool isBossSummonRequested() const { return m_bossSummonRequested; }
+    void requestBossSummon() { m_bossSummonRequested = true; }
+    void clearBossSummon() { m_bossSummonRequested = false; }
 
 private:
     std::unique_ptr<World> m_world;
     std::unique_ptr<Player> m_player;
     std::vector<std::unique_ptr<Mob>> m_mobs;
-    std::vector<Arrow> m_arrows;
+    std::vector<Projectile> m_projectiles;
+    std::vector<TempHitbox> m_tempHitboxes;
     ParticleSystem m_particles;
     std::unique_ptr<Minimap> m_minimap;
     bool m_minimapVisible = true;
@@ -71,4 +78,5 @@ private:
     unsigned int m_seed = 0;
 
     std::mt19937 m_rng;
+    bool m_bossSummonRequested = false;
 };

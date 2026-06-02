@@ -1,5 +1,6 @@
 #include "HUD.hpp"
 #include "entities/Player.hpp"
+#include "entities/Mob.hpp"
 #include "items/Inventory.hpp"
 #include "items/ItemDefinition.hpp"
 #include "items/Tool.hpp"
@@ -10,7 +11,23 @@
 #include <string>
 #include <cmath>
 
+HUD::Message HUD::s_message{};
+
 constexpr float CYCLE_LENGTH = 420.0f;
+constexpr int MSG_FONT_SIZE = 28;
+
+void HUD::update(float dt) {
+    if (s_message.timer > 0.0f) {
+        s_message.timer -= dt;
+    }
+}
+
+void HUD::showMessage(const std::string& text, float duration, int yOffset) {
+    s_message.text = text;
+    s_message.timer = duration;
+    s_message.duration = duration;
+    s_message.yOffset = yOffset;
+}
 
 void HUD::renderPlayerHP(const Player& player) {
     int barW = 200;
@@ -33,6 +50,21 @@ void HUD::renderPlayerHP(const Player& player) {
 }
 
 void HUD::render(const Player& player, float dayTime) {
+    if (s_message.timer > 0.0f) {
+        float alpha = 1.0f;
+        if (s_message.timer < HUD::FADE_START) {
+            alpha = s_message.timer / HUD::FADE_START;
+        }
+        unsigned char a = static_cast<unsigned char>(255 * alpha);
+        Color shadow{0, 0, 0, static_cast<unsigned char>(180 * alpha)};
+        Color text{180, 100, 255, a};
+        int w = MeasureText(s_message.text.c_str(), MSG_FONT_SIZE);
+        int x = (constants::SCREEN_WIDTH - w) / 2;
+        int y = constants::SCREEN_HEIGHT / 2 - 60 + s_message.yOffset;
+        DrawText(s_message.text.c_str(), x + 2, y + 2, MSG_FONT_SIZE, shadow);
+        DrawText(s_message.text.c_str(), x, y, MSG_FONT_SIZE, text);
+    }
+
     renderPlayerHP(player);
     renderTime(dayTime);
     const auto& inventory = player.getInventory();
@@ -83,6 +115,29 @@ void HUD::render(const Player& player, float dayTime) {
         selectedName += "  [Arrows: " + std::to_string(arrowCount) + "]";
     }
     DrawText(selectedName.c_str(), 10, startY - 25, 16, WHITE);
+}
+
+void HUD::renderBossHP(const Mob& boss) {
+    int barW = 300;
+    int barH = 18;
+    int x = (constants::SCREEN_WIDTH - barW) / 2;
+    int y = 45;
+
+    DrawRectangle(x, y, barW, barH, Color{40, 20, 20, 220});
+    DrawRectangleLines(x, y, barW, barH, Color{200, 60, 60, 255});
+
+    int hp = boss.getHealth();
+    int maxHp = boss.getMaxHealth();
+    int fillW = barW * hp / maxHp;
+    DrawRectangle(x + 1, y + 1, fillW - 1, barH - 2, Color{200, 50, 50, 255});
+
+    std::string name = "Forest Guardian";
+    int nameW = MeasureText(name.c_str(), 14);
+    DrawText(name.c_str(), x + (barW - nameW) / 2, y - 16, 14, Color{255, 220, 180, 255});
+
+    std::string hpText = std::to_string(hp) + " / " + std::to_string(maxHp);
+    int textW = MeasureText(hpText.c_str(), 12);
+    DrawText(hpText.c_str(), x + (barW - textW) / 2, y + 3, 12, WHITE);
 }
 
 void HUD::renderTime(float dayTime) {

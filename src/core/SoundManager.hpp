@@ -17,6 +17,8 @@ public:
         TorchPlace,
         Craft,
         ItemPickup,
+        PlayerHurt,
+        BossSummon,
         Count
     };
 
@@ -44,6 +46,7 @@ private:
     Wave generateTorchPlace();
     Wave generateCraft();
     Wave generateItemPickup();
+    Wave generatePlayerHurt();
 
     std::array<Sound, Count> m_sounds{};
     bool m_loaded = false;

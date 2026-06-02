@@ -1,10 +1,11 @@
 #include "entities/Player.hpp"
+#include "items/Inventory.hpp"
 #include "core/Constants.hpp"
-#include "core/TextureManager.hpp"
+#include "core/Math.hpp"
 #include "core/SoundManager.hpp"
+#include "core/TextureManager.hpp"
 #include "items/Tool.hpp"
-#include "items/ItemDefinition.hpp"
-
+#include <raylib.h>
 #include <cmath>
 
 namespace {
@@ -250,7 +251,8 @@ void Player::render() const {
         if (m_facingLeft) {
             src.width = -src.width;
         }
-        DrawTexturePro(*tex, src, dst, {0, 0}, 0.0f, WHITE);
+        Color tint = (m_hurtTimer > 0.0f) ? Color{255, 120, 120, 255} : WHITE;
+        DrawTexturePro(*tex, src, dst, {0, 0}, 0.0f, tint);
     } else {
         DrawRectangleRec(getBounds(), BLUE);
     }
@@ -282,22 +284,18 @@ void Player::render() const {
         }
     }
 
-    if (sel && sel->count > 0 && isBow(sel->tileId)) {
+    if (sel && sel->count > 0 && isBow(sel->tileId) && m_bowCooldown > 0.0f) {
         const Texture2D& bowTex = TextureManager::instance().getTexture(sel->tileId);
         if (bowTex.id > 0) {
-            float centerX = m_position.x + m_width / 2;
-            float centerY = m_position.y + m_height / 2;
-            int side = m_facingLeft ? -1 : 1;
-            float handX = centerX + constants::TILE_SIZE * 0.6f * side;
-            float handY = centerY + constants::TILE_SIZE * 0.25f;
+            float bowW = static_cast<float>(bowTex.width);
+            float bowH = static_cast<float>(bowTex.height);
+            float handX = m_position.x + (m_facingLeft ? -4.0f : m_width + 4.0f);
+            float handY = m_position.y + 13.0f;
 
-            Rectangle tSrc = {0, 0, static_cast<float>(bowTex.width),
-                              static_cast<float>(bowTex.height)};
-            Rectangle tDst = {handX - TOOL_SIZE / 2, handY - TOOL_SIZE / 2,
-                              TOOL_SIZE, TOOL_SIZE};
-            float rot = 0.0f;
+            Rectangle tSrc = {0, 0, bowW, bowH};
+            Rectangle tDst = {handX, handY, bowW, bowH};
             if (m_facingLeft) tSrc.width = -tSrc.width;
-            DrawTexturePro(bowTex, tSrc, tDst, {TOOL_SIZE / 2, TOOL_SIZE / 2}, rot, WHITE);
+            DrawTexturePro(bowTex, tSrc, tDst, {bowW / 2, bowH / 2}, 0.0f, WHITE);
         }
     }
 }
@@ -307,6 +305,7 @@ void Player::takeDamage(int amount) {
     m_health -= amount;
     if (m_health < 0) m_health = 0;
     m_hurtTimer = 0.5f;
+    SoundManager::instance().play(SoundManager::PlayerHurt);
 }
 
 void Player::heal(int amount) {

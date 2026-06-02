@@ -4,6 +4,7 @@
 #include "core/Math.hpp"
 #include "core/TextureManager.hpp"
 #include "core/SoundManager.hpp"
+#include "core/MusicManager.hpp"
 #include "items/ItemDefinition.hpp"
 #include "items/Tool.hpp"
 #include "systems/PhysicsSystem.hpp"
@@ -13,6 +14,7 @@
 #include "ui/HUD.hpp"
 #include "ui/Minimap.hpp"
 #include "save/SaveManager.hpp"
+#include "world/Tile.hpp"
 #include "world/TileRegistry.hpp"
 #include "world/WorldGenerator.hpp"
 #include "app/MobSpawner.hpp"
@@ -47,6 +49,7 @@ void Game::init() {
 
     InitAudioDevice();
     SoundManager::instance().loadAll();
+    MusicManager::instance().loadAll();
     applySettings();
 
     m_renderer.init();
@@ -67,6 +70,8 @@ void Game::run() {
         if (m_state == GameState::Playing) {
             update(dt);
         }
+
+        MusicManager::instance().tick();
 
         BeginTextureMode(m_target);
         ClearBackground(Color{20, 20, 30, 255});
@@ -138,7 +143,7 @@ void Game::applySettings() {
         );
     }
 
-    m_session.setMinimapVisible(m_settingsMenu.getShowMinimap());
+    m_session.setMinimapVisible(true);
 }
 
 void Game::handleInput() {
@@ -161,6 +166,7 @@ void Game::handleInput() {
                 }
                 break;
             case MenuResult::Settings:
+                m_prevState = GameState::MainMenu;
                 m_state = GameState::Settings;
                 break;
             case MenuResult::Quit:
@@ -175,13 +181,14 @@ void Game::handleInput() {
     if (m_state == GameState::Settings) {
         auto action = m_settingsMenu.update();
         if (action == SettingsMenu::Action::Back) {
-            m_state = GameState::MainMenu;
+            m_state = m_prevState;
         }
         return;
     }
 
     if (input::isPausePressed()) {
         if (m_state == GameState::Playing) {
+            MusicManager::instance().stop();
             m_state = GameState::Inventory;
         } else if (m_state == GameState::Inventory) {
             m_state = GameState::Playing;
@@ -198,6 +205,10 @@ void Game::handleInput() {
             cleanupWorld();
             m_state = GameState::MainMenu;
             m_menu.setVisible(true);
+        } else if (action == InventoryScreen::Action::OpenSettings) {
+            m_prevState = GameState::Inventory;
+            m_settingsMenu.saveToFile();
+            m_state = GameState::Settings;
         }
         return;
     }
@@ -252,6 +263,26 @@ void Game::handleInput() {
                 return;
             }
         }
+        auto* sel = player.getInventory().getSelectedSlot();
+        if (sel && sel->count > 0 && sel->tileId == TileId::AncientSeed) {
+            bool bossAlive = false;
+            for (auto& m : m_session.getMobs()) {
+                if (m->isBoss() && m->getHealth() > 0) { bossAlive = true; break; }
+            }
+            if (!bossAlive) {
+                float px = player.getPosition().x + player.getBounds().width / 2;
+                int tileX = math::worldToTileX(px);
+                Biome biome = world.getBiome(tileX);
+                if (biome == Biome::Forest) {
+                    player.getInventory().removeItem(TileId::AncientSeed, 1);
+                    m_session.requestBossSummon();
+                    HUD::showMessage("The Forest Guardian has awakened!", 4.0f, 300);
+                    SoundManager::instance().play(SoundManager::BossSummon);
+                }
+            }
+            return;
+        }
+
         InteractionSystem::handlePlacePress(m_session.getPlayer(), m_session.getWorld(),
                                               m_camera.getCamera(), m_session.getMinimap());
     }
@@ -310,8 +341,114 @@ void Game::update(float dt) {
 
     for (auto& mob : mobs) {
         mob->setPlayerPos(playerCenter);
+        mob->setWorldPtr(&world);
         mob->update(dt);
         PhysicsSystem::update(*mob, world, dt);
+    }
+
+    if (m_session.isBossSummonRequested()) {
+        m_session.clearBossSummon();
+        float px = player.getPosition().x + player.getBounds().width / 2;
+        int tileX = math::worldToTileX(px + 80.0f);
+        int surfaceY = 0;
+        for (int y = 0; y < world.getWorldHeight(); ++y) {
+            if (world.getTile(tileX, y) != TileId::Air) { surfaceY = y; break; }
+        }
+        float groundY = static_cast<float>(surfaceY) * constants::TILE_SIZE;
+        auto boss = std::make_unique<Mob>(MobType::ForestGuardian,
+            Vector2{static_cast<float>(tileX) * constants::TILE_SIZE, groundY - 160.0f});
+        boss->load();
+        mobs.push_back(std::move(boss));
+    }
+
+    for (auto& mob : mobs) {
+        if (!mob->isBoss()) continue;
+
+        if (mob->isSummonPending()) {
+            mob->clearSummonPending();
+            auto& rng = m_session.getRNG();
+            std::uniform_int_distribution<int> distCount(2, 3);
+            int count = distCount(rng);
+            for (int i = 0; i < count; ++i) {
+                float sx = mob->getBounds().x + mob->getBounds().width / 2 + (i - 1) * 20.0f;
+                float sy = mob->getBounds().y + mob->getBounds().height;
+                auto slime = std::make_unique<Mob>(MobType::Slime, Vector2{sx, sy});
+                slime->setPlayerPos(playerCenter);
+                slime->load();
+                slime->setFacing((i % 2 == 0) ? 1 : -1);
+                mobs.push_back(std::move(slime));
+            }
+        }
+
+        if (mob->isProjectilePending()) {
+            mob->clearProjectilePending();
+            auto& projectiles = m_session.getProjectiles();
+            Rectangle mb = mob->getBounds();
+            float sx = mb.x + mb.width / 2;
+            float sy = mb.y + mb.height;
+            float dx = playerCenter.x - sx;
+            float dy = playerCenter.y - sy;
+            bool isFireball = mob->getPendingProjectileType() == ProjectileType::Fireball;
+            float speed = isFireball ? 600.0f : 400.0f;
+
+            Projectile p;
+            p.position = {sx, sy};
+            p.type = mob->getPendingProjectileType();
+            p.damage = 15;
+            p.lifetime = 3.0f;
+            p.fromBoss = true;
+
+            if (isFireball) {
+                float len = std::sqrt(dx * dx + dy * dy);
+                if (len > 0.0f) { dx /= len; dy /= len; }
+                p.velocity = {dx * speed, dy * speed};
+                p.noGravity = true;
+            } else if (std::abs(dx) > 1.0f) {
+                float a = dy / dx;
+                float g2 = 400.0f;
+                float v2 = speed * speed;
+                float A = 1.0f + a * a;
+                float B = -(v2 + 800.0f * dy);
+                float C = g2 * g2 * dx * dx;
+                float disc = B * B - 4.0f * A * C;
+                float vx = speed * (dx > 0.0f ? 1.0f : -1.0f);
+                if (disc >= 0.0f) {
+                    float uSol = (-B - std::sqrt(disc)) / (2.0f * A);
+                    if (uSol > 0.0f) vx = std::sqrt(uSol) * (dx > 0.0f ? 1.0f : -1.0f);
+                }
+                p.velocity = {vx, a * vx - g2 * dx / vx};
+            } else {
+                float len = std::sqrt(dx * dx + dy * dy);
+                if (len > 0.0f) { dx /= len; dy /= len; }
+                p.velocity = {dx * speed, dy * speed};
+            }
+            projectiles.push_back(p);
+        }
+
+        if (mob->isMeleePending()) {
+            mob->clearMeleePending();
+            Rectangle mb = mob->getBounds();
+            float swipeX = (mob->getFacing() == 1) ? mb.x + mb.width : mb.x - 32.0f;
+            TempHitbox h;
+            h.bounds = {swipeX, mb.y, 32.0f, mb.height};
+            h.damage = 20;
+            h.lifetime = 0.3f;
+            h.targetsPlayer = true;
+            m_session.getTempHitboxes().push_back(h);
+        }
+    }
+
+    {
+        Biome biome = Biome::Forest;
+        if (!mobs.empty()) {
+            float px = player.getPosition().x + player.getBounds().width / 2;
+            biome = world.getBiome(math::worldToTileX(px));
+        }
+        bool bossAlive = false;
+        for (auto& m : mobs) {
+            if (m->isBoss() && m->getHealth() > 0) { bossAlive = true; break; }
+        }
+        MusicManager::instance().update(biome, bossAlive, m_session.getDayTime());
     }
 
     m_camera.update(player);
@@ -342,10 +479,11 @@ void Game::update(float dt) {
             player.resetBowFired();
             auto* sel = player.getInventory().getSelectedSlot();
             if (sel) {
-                Arrow arrow;
+                Projectile proj;
                 float centerX = player.getPosition().x + player.getBounds().width / 2;
                 float centerY = player.getPosition().y + player.getBounds().height / 2;
-                arrow.position = {centerX, centerY - 4};
+                proj.position = {centerX, centerY - 4};
+                proj.type = ProjectileType::Arrow;
                 Vector2 mouse = math::getVirtualMouse();
                 Vector2 worldPos = GetScreenToWorld2D(mouse, m_camera.getCamera());
                 float dx = worldPos.x - centerX;
@@ -353,14 +491,19 @@ void Game::update(float dt) {
                 float len = std::sqrt(dx * dx + dy * dy);
                 if (len > 0.1f) {
                     float arrowSpeed = 900.0f;
-                    arrow.velocity = {dx / len * arrowSpeed, dy / len * arrowSpeed};
-                    arrow.facing = dx < 0 ? -1 : 1;
+                    proj.velocity = {dx / len * arrowSpeed, dy / len * arrowSpeed};
+                    proj.facing = dx < 0 ? -1 : 1;
                 } else {
                     int facing = player.isFacingLeft() ? -1 : 1;
-                    arrow.velocity = {static_cast<float>(facing) * 900.0f, -50.0f};
-                    arrow.facing = facing;
+                    proj.velocity = {static_cast<float>(facing) * 900.0f, -50.0f};
+                    proj.facing = facing;
                 }
-                m_session.getArrows().push_back(arrow);
+                {
+                    auto* sel = player.getInventory().getSelectedSlot();
+                    if (sel) proj.damage = ItemDatabase::instance().get(sel->tileId).tool.damage;
+                    if (proj.damage <= 0) proj.damage = 10;
+                }
+                m_session.getProjectiles().push_back(proj);
                 SoundManager::instance().play(SoundManager::SwordHit);
             }
         }
@@ -393,6 +536,14 @@ void Game::update(float dt) {
                         dropItem = TileId::CopperOre;
                         dropCount = 1;
                     }
+                } else if (mob->getType() == MobType::ForestGuardian) {
+                    player.getInventory().addItem(TileId::GoldBar, distCount(rng) + 4);
+                    player.getInventory().addItem(TileId::Wood, distCount(rng) * 10 + 15);
+                    player.getInventory().addItem(TileId::Gel, distCount(rng) * 5 + 8);
+                    if (dist100(rng) < 50) {
+                        player.getInventory().addItem(TileId::AncientSeed, 1);
+                    }
+                    HUD::showMessage("Forest Guardian defeated!", 4.0f, 300);
                 }
                 if (dropItem != TileId::Air) {
                     player.getInventory().addItem(dropItem, dropCount);
@@ -408,22 +559,22 @@ void Game::update(float dt) {
     }
 
     {
-        auto& arrows = m_session.getArrows();
+        auto& projectiles = m_session.getProjectiles();
         auto& particles = m_session.getParticles();
         const float GRAVITY = 800.0f;
-        for (auto it = arrows.begin(); it != arrows.end(); ) {
-            Arrow& a = *it;
-            a.lifetime -= dt;
-            if (!a.active || a.lifetime <= 0.0f) {
-                it = arrows.erase(it);
+        for (auto it = projectiles.begin(); it != projectiles.end(); ) {
+            Projectile& p = *it;
+            p.lifetime -= dt;
+            if (!p.active || p.lifetime <= 0.0f) {
+                it = projectiles.erase(it);
                 continue;
             }
-            a.velocity.y += GRAVITY * dt;
-            a.position.x += a.velocity.x * dt;
-            a.position.y += a.velocity.y * dt;
+            if (!p.noGravity) p.velocity.y += GRAVITY * dt;
+            p.position.x += p.velocity.x * dt;
+            p.position.y += p.velocity.y * dt;
 
-            int tx = math::worldToTileX(a.position.x);
-            int ty = math::worldToTileY(a.position.y);
+            int tx = math::worldToTileX(p.position.x);
+            int ty = math::worldToTileY(p.position.y);
             bool hitTile = false;
             if (world.isInBounds(tx, ty)) {
                 TileId tile = world.getTile(tx, ty);
@@ -431,42 +582,79 @@ void Game::update(float dt) {
                     hitTile = true;
                 }
             }
-            if (a.position.x < 0 || a.position.x > constants::WORLD_WIDTH * constants::TILE_SIZE ||
-                a.position.y < 0 || a.position.y > constants::WORLD_HEIGHT * constants::TILE_SIZE) {
+            if (p.position.x < 0 || p.position.x > constants::WORLD_WIDTH * constants::TILE_SIZE ||
+                p.position.y < 0 || p.position.y > constants::WORLD_HEIGHT * constants::TILE_SIZE) {
                 hitTile = true;
             }
 
             bool hitMob = false;
-            for (auto& mob : mobs) {
-                Rectangle mobBounds = mob->getBounds();
-                if (CheckCollisionPointRec(a.position, mobBounds)) {
-                    int damage = 0;
-                    auto* sel = player.getInventory().getSelectedSlot();
-                    if (sel) damage = ItemDatabase::instance().get(sel->tileId).tool.damage;
-                    if (damage <= 0) damage = 10;
-                    mob->takeDamage(damage);
-                    for (int i = 0; i < 5; ++i) {
-                        particles.emit(a.position, {0, -100}, {255, 100, 50, 255}, 0.4f, 3, 1);
-                    }
+            if (p.fromBoss) {
+                if (CheckCollisionPointRec(p.position, player.getBounds())) {
+                    player.takeDamage(p.damage);
                     hitMob = true;
-                    break;
+                }
+            } else {
+                for (auto& mob : mobs) {
+                    Rectangle mobBounds = mob->getBounds();
+                    if (CheckCollisionPointRec(p.position, mobBounds)) {
+                        mob->takeDamage(p.damage);
+                        for (int i = 0; i < 5; ++i) {
+                            Color c = (p.type == ProjectileType::Fireball)
+                                ? Color{255, 120, 40, 255}
+                                : Color{255, 100, 50, 255};
+                            particles.emit(p.position, {0, -100}, c, 0.4f, 3, 1);
+                        }
+                        hitMob = true;
+                        break;
+                    }
                 }
             }
 
             if (hitTile || hitMob) {
+                Color partColor{200, 180, 140, 255};
+                if (p.type == ProjectileType::Fireball) partColor = {255, 150, 50, 255};
+                else if (p.type == ProjectileType::Leaf) partColor = {80, 200, 60, 255};
                 for (int i = 0; i < 4; ++i) {
-                    particles.emit(a.position,
-                        {a.velocity.x * 0.2f, a.velocity.y * 0.2f},
-                        {200, 180, 140, 255}, 0.5f, 3, 1);
+                    particles.emit(p.position,
+                        {p.velocity.x * 0.2f, p.velocity.y * 0.2f},
+                        partColor, 0.5f, 3, 1);
                 }
-                it = arrows.erase(it);
+                it = projectiles.erase(it);
             } else {
                 ++it;
             }
         }
     }
 
+    {
+        auto& hitboxes = m_session.getTempHitboxes();
+        for (auto it = hitboxes.begin(); it != hitboxes.end(); ) {
+            TempHitbox& h = *it;
+            h.lifetime -= dt;
+            if (!h.active || h.lifetime <= 0.0f) {
+                it = hitboxes.erase(it);
+                continue;
+            }
+            if (h.targetsPlayer) {
+                if (CheckCollisionRecs(h.bounds, player.getBounds())) {
+                    player.takeDamage(h.damage);
+                    h.lifetime = 0.0f;
+                }
+            } else {
+                for (auto& mob : mobs) {
+                    if (CheckCollisionRecs(h.bounds, mob->getBounds())) {
+                        mob->takeDamage(h.damage);
+                        h.lifetime = 0.0f;
+                        break;
+                    }
+                }
+            }
+            ++it;
+        }
+    }
+
     m_session.getParticles().update(dt);
+    HUD::update(dt);
 
     Difficulty diff = m_session.getDifficulty();
     m_mobSpawner.updateNightSpawning(world, mobs, player, m_session.getDayTime(), dt, m_session.getRNG(), diff);
@@ -542,10 +730,6 @@ void Game::newGame(const std::string& name, WorldSize size, int slot, Difficulty
     give(TileId::CopperPickaxe, 1);
     give(TileId::CopperAxe, 1);
     give(TileId::CopperSword, 1);
-    give(TileId::CopperBow, 1);
-    give(TileId::IronBow, 1);
-    give(TileId::GoldBow, 1);
-    give(TileId::Arrow, 99);
 
     m_session.getMinimap().rebuild(world);
 
@@ -555,7 +739,7 @@ void Game::newGame(const std::string& name, WorldSize size, int slot, Difficulty
     player.setPosition(spawnPos);
     player.setVelocity({0, 0});
 
-    m_session.setMinimapVisible(m_settingsMenu.getShowMinimap());
+    m_session.setMinimapVisible(true);
 
     m_camera.update(player);
 
@@ -593,7 +777,7 @@ bool Game::loadGame(int slot) {
 
     m_mobSpawner.reset();
     m_session.getMinimap().rebuild(m_session.getWorld());
-    m_session.setMinimapVisible(m_settingsMenu.getShowMinimap());
+    m_session.setMinimapVisible(true);
 
     m_camera.update(m_session.getPlayer());
 
@@ -615,6 +799,7 @@ void Game::saveGame() {
 
 void Game::cleanupWorld() {
     m_session.clear();
+    MusicManager::instance().stop();
 }
 
 void Game::cleanup() {
@@ -622,6 +807,7 @@ void Game::cleanup() {
     m_renderer.cleanup();
     TextureManager::instance().unloadAll();
     SoundManager::instance().unloadAll();
+    MusicManager::instance().unloadAll();
     CloseAudioDevice();
     if (m_target.id > 0) UnloadRenderTexture(m_target);
     CloseWindow();

@@ -11,7 +11,7 @@ class World;
 
 class InventoryScreen {
 public:
-    enum class Action { None, ReturnToMenu };
+    enum class Action { None, ReturnToMenu, OpenSettings };
 
     Action update(Player& player, const World& world);
     void render(const Player& player, const World& world) const;

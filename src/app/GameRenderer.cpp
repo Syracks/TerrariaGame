@@ -140,7 +140,7 @@ void GameRenderer::renderWorldAndEntities(GameSession& session, const Camera2D& 
     const auto& player = session.getPlayer();
     const auto& mobs = session.getMobs();
     const auto& particles = session.getParticles();
-    const auto& arrows = session.getArrows();
+    const auto& projectiles = session.getProjectiles();
 
     BeginMode2D(cam);
     RenderSystem::renderWorld(world, cam);
@@ -149,20 +149,50 @@ void GameRenderer::renderWorldAndEntities(GameSession& session, const Camera2D& 
     }
     {
         const Texture2D& arrowTex = TextureManager::instance().getTexture(TileId::Arrow);
-        for (const auto& a : arrows) {
-            if (!a.active) continue;
-            if (arrowTex.id > 0) {
-                Rectangle src = {0, 0, static_cast<float>(arrowTex.width),
-                                 static_cast<float>(arrowTex.height)};
-                Rectangle dst = {a.position.x - 8, a.position.y - 8, 16, 16};
-                float rot = std::atan2(a.velocity.y, a.velocity.x) * RAD2DEG;
-                Vector2 origin = {8, 8};
-                DrawTexturePro(arrowTex, src, dst, origin, rot, WHITE);
+        const Texture2D& leafTex = TextureManager::instance().getTexture(TileId::LeafProjectile);
+        const Texture2D& fireTex = TextureManager::instance().getTexture(TileId::Fireball);
+        for (const auto& p : projectiles) {
+            if (!p.active) continue;
+
+            const Texture2D* tex = nullptr;
+            Color tint = WHITE;
+            switch (p.type) {
+                case ProjectileType::Leaf:
+                    tex = leafTex.id > 0 ? &leafTex : nullptr;
+                    break;
+                case ProjectileType::Fireball:
+                    tex = fireTex.id > 0 ? &fireTex : nullptr;
+                    break;
+                default:
+                    tex = arrowTex.id > 0 ? &arrowTex : nullptr;
+                    break;
+            }
+
+            if (tex && tex->id > 0) {
+                float w = static_cast<float>(tex->width);
+                float h = static_cast<float>(tex->height);
+                Rectangle src = {0, 0, w, h};
+                Rectangle dst = {p.position.x - w / 2, p.position.y - h / 2, w, h};
+                float rot = std::atan2(p.velocity.y, p.velocity.x) * RAD2DEG;
+                Vector2 origin = {w / 2, h / 2};
+                DrawTexturePro(*tex, src, dst, origin, rot, tint);
             } else {
-                DrawCircleV(a.position, 3, {200, 180, 140, 255});
+                Color c{200, 180, 140, 255};
+                if (p.type == ProjectileType::Fireball) c = {255, 120, 40, 255};
+                else if (p.type == ProjectileType::Leaf) c = {80, 200, 60, 255};
+                DrawCircleV(p.position, 3, c);
             }
         }
     }
+    for (const auto& h : session.getTempHitboxes()) {
+        if (!h.active) continue;
+        Color c = h.targetsPlayer
+            ? Color{255, 60, 60, 80}
+            : Color{60, 200, 255, 80};
+        DrawRectangleRec(h.bounds, c);
+        DrawRectangleLinesEx(h.bounds, 1, Color{255, 255, 255, 120});
+    }
+
     particles.render();
     if (session.getDeathTimer() <= 0.0f) {
         player.render();
@@ -179,6 +209,12 @@ void GameRenderer::renderWorldAndEntities(GameSession& session, const Camera2D& 
 
 void GameRenderer::renderHUD(GameSession& session) {
     HUD::render(session.getPlayer(), session.getDayTime());
+    for (auto& mob : session.getMobs()) {
+        if (mob->isBoss() && mob->getHealth() > 0) {
+            HUD::renderBossHP(*mob);
+            break;
+        }
+    }
 }
 
 void GameRenderer::renderMinimap(GameSession& session) {
@@ -192,7 +228,7 @@ void GameRenderer::renderMinimap(GameSession& session) {
 
 float GameRenderer::getNightAmount(float dayTime) {
     float t = dayTime / CYCLE_LENGTH;
-    // t=0=8am dawn, t=0.5=8pm dusk, t=1.0=8am next dawn, peaks at t=0.75=2am midnight
+
     if (t <= 0.35f) return 0.0f;
     if (t <= 0.50f) return (t - 0.35f) / 0.15f * 0.4f;
     if (t <= 0.65f) return 0.4f + (t - 0.50f) / 0.15f * 0.6f;
