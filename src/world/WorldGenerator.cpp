@@ -369,9 +369,8 @@ void WorldGenerator::rebuildSpawnArea() {
 }
 
 void WorldGenerator::repairSurfaceLayer() {
-    int oceanMargin = 62;
     for (int x = 0; x < constants::WORLD_WIDTH; ++x) {
-        if (x < oceanMargin || x >= constants::WORLD_WIDTH - oceanMargin) {
+        if (x < 2 || x >= constants::WORLD_WIDTH - 2) {
             continue;
         }
 
@@ -406,6 +405,7 @@ void WorldGenerator::repairSurfaceLayer() {
                 lowerFill = TileId::Mud;
                 break;
             case Biome::Ocean:
+                continue;
             case Biome::Beach:
                 surfaceTile = TileId::Sand;
                 upperFill = TileId::Sand;
@@ -453,6 +453,7 @@ void WorldGenerator::generate(ProgressCallback progress) {
 
     generateOceans();
     repairOceanTransitions();
+    repairOceanSurface();
     m_world.setBiomeData(m_biomeMap, m_surfaceHeight);
     if (progress) progress(0.30f);
 
@@ -1062,8 +1063,7 @@ void WorldGenerator::generateOceans() {
             float frac = static_cast<float>(x) / static_cast<float>(oceanWidth);
             float drop = (1.0f - frac) * (1.0f - frac);
 
-            int surfaceY = baseSurface + static_cast<int>(drop * 27.0f);
-            surfaceY = std::clamp(surfaceY, 3, constants::WORLD_HEIGHT - 10);
+            int surfaceY = std::clamp(baseSurface, 5, constants::WORLD_HEIGHT - 10);
             m_surfaceHeight[tileX] = surfaceY;
 
             m_biomeMap[tileX] = (x < 45) ? Biome::Ocean : Biome::Beach;
@@ -1077,26 +1077,19 @@ void WorldGenerator::generateOceans() {
 
 
             if (x < 45) {
-                float waterLevel = 1.0f;
-                if (x > 35) {
-                    waterLevel = static_cast<float>(45 - x) / 10.0f;
-                }
                 int oceanFloor = surfaceY + 18 + static_cast<int>(drop * 12.0f);
                 oceanFloor = std::min(oceanFloor, constants::WORLD_HEIGHT - 5);
-                int waterSurface = surfaceY + static_cast<int>(18 * waterLevel);
                 for (int y = surfaceY; y <= oceanFloor && y < constants::WORLD_HEIGHT; ++y) {
                     m_world.setTile(tileX, y, TileId::Air);
-                    if (y <= waterSurface) {
-                        m_world.setWater(tileX, y, MAX_LIQUID_LEVEL);
-                    }
+                    m_world.setWater(tileX, y, MAX_LIQUID_LEVEL);
                 }
                 for (int y = oceanFloor + 1; y <= oceanFloor + 4 && y < constants::WORLD_HEIGHT; ++y) {
                     m_world.setTile(tileX, y, TileId::Sand);
                 }
             } else {
-
-                m_world.setTile(tileX, surfaceY, TileId::Sand);
-                for (int y = surfaceY + 1; y <= surfaceY + 6 && y < constants::WORLD_HEIGHT; ++y) {
+                int beachFloor = surfaceY + 6 + static_cast<int>(drop * 6.0f);
+                beachFloor = std::min(beachFloor, constants::WORLD_HEIGHT - 5);
+                for (int y = surfaceY; y <= beachFloor && y < constants::WORLD_HEIGHT; ++y) {
                     m_world.setTile(tileX, y, TileId::Sand);
                 }
             }
@@ -1159,6 +1152,33 @@ void WorldGenerator::repairOceanTransitions() {
                 if (tileX >= 0 && tileX < constants::WORLD_WIDTH)
                     m_surfaceHeight[tileX] = smoothed[tileX];
             }
+        }
+    }
+}
+
+void WorldGenerator::repairOceanSurface() {
+    int oceanMargin = 62;
+
+    for (int x = 0; x < constants::WORLD_WIDTH; ++x) {
+        if (x >= oceanMargin && x < constants::WORLD_WIDTH - oceanMargin) continue;
+
+        int surfaceY = m_surfaceHeight[x];
+        if (surfaceY < 5 || surfaceY >= constants::WORLD_HEIGHT - 10) continue;
+
+        Biome biome = m_biomeMap[x];
+        if (biome != Biome::Beach) continue;
+
+        for (int y = 0; y < surfaceY; ++y) {
+            m_world.setTile(x, y, TileId::Air);
+            m_world.setWall(x, y, TileId::Air);
+            m_world.setWater(x, y, 0);
+            m_world.setLava(x, y, 0);
+        }
+
+        m_world.setTile(x, surfaceY, TileId::Sand);
+
+        for (int y = surfaceY + 1; y <= surfaceY + 8 && y < constants::WORLD_HEIGHT; ++y) {
+            m_world.setTile(x, y, TileId::Sand);
         }
     }
 }

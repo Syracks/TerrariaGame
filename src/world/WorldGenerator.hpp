@@ -62,6 +62,7 @@ private:
     void generateUndergroundCabins();
     void generateOceans();
     void repairOceanTransitions();
+    void repairOceanSurface();
     void generateWaterPools();
     void generateLavaPools();
     void postProcess();

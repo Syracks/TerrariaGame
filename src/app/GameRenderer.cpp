@@ -94,19 +94,23 @@ void GameRenderer::renderBackground(float dayTime, const World& world, const Pla
     if (tileY > surfaceY + UNDERGROUND_THRESHOLD) {
         bg = &m_undergroundBg;
     } else {
-        if (tileX < BEACH_MARGIN || tileX >= constants::WORLD_WIDTH - BEACH_MARGIN) {
-            if (tileY <= surfaceY + 5) {
+        Biome biome = world.getBiome(tileX);
+        switch (biome) {
+            case Biome::Ocean:
+            case Biome::Beach:
                 bg = &m_beachBg;
-            }
-        }
-        if (bg == &m_forestBg) {
-            Biome biome = world.getBiome(tileX);
-            switch (biome) {
-                case Biome::Desert:   bg = &m_desertBg; break;
-                case Biome::Snow:     bg = &m_snowBg;   break;
-                case Biome::Jungle:   bg = &m_jungleBg; break;
-                default: break;
-            }
+                break;
+            case Biome::Desert:
+                bg = &m_desertBg;
+                break;
+            case Biome::Snow:
+                bg = &m_snowBg;
+                break;
+            case Biome::Jungle:
+                bg = &m_jungleBg;
+                break;
+            default:
+                break;
         }
     }
 
