@@ -128,7 +128,7 @@ void Mob::load() {
             Image img = LoadImage(path);
             if (img.data != nullptr) {
                 if (m_type == MobType::BlueSlime) {
-                    ImageColorTint(&img, (Color){50, 130, 255, 255});
+                    ImageColorTint(&img, Color{50, 130, 255, 255});
                 }
                 m_tex = LoadTextureFromImage(img);
                 ImageFlipHorizontal(&img);
@@ -246,7 +246,7 @@ void Mob::zombieIdleAI(float dt) {
     }
 }
 
-void Mob::zombieChaseAI(float dt) {
+void Mob::zombieChaseAI(float /*dt*/) {
     float dx = m_playerPos.x - m_position.x;
     float dy = m_playerPos.y - m_position.y;
     m_facing = (dx > 0) ? 1 : -1;

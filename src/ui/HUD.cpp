@@ -78,8 +78,6 @@ void HUD::render(const Player& player, float dayTime) {
     int startY = constants::SCREEN_HEIGHT - slotSize - 10;
 
     auto& texMgr = TextureManager::instance();
-    auto& itemDb = ItemDatabase::instance();
-
     for (int i = 0; i < constants::HOTBAR_SLOTS; ++i) {
         int x = startX + i * (slotSize + margin);
         Color bg = (i == selected) ? Color{60, 60, 70, 255} : Color{40, 40, 50, 200};
